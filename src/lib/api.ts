@@ -5,12 +5,14 @@ import {
   ResumeExtractResponse,
   ResumeOptimizationRequest,
   ResumeOptimizationResponse,
+  ApplyImprovementsRequest,
+  ApplyImprovementsResponse,
   LaTeXGenerationRequest,
   LaTeXGenerationResponse,
   APIError,
 } from './types';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const API_BASE_URL = '/api';
 
 class APIClient {
   private async request<T>(
@@ -67,6 +69,16 @@ class APIClient {
         message: `HTTP ${response.status}: ${response.statusText}`,
         status: response.status,
       };
+      
+      try {
+        const errorData = await response.json();
+        error.details = errorData.error?.detail || errorData.detail || errorData.message;
+        console.error('Backend error details:', errorData);
+      } catch {
+        // If error response isn't JSON, use status text
+        console.error('Non-JSON error response');
+      }
+      
       throw error;
     }
 
@@ -77,6 +89,15 @@ class APIClient {
     data: ResumeOptimizationRequest
   ): Promise<ResumeOptimizationResponse> {
     return this.request<ResumeOptimizationResponse>('/resume/suggest-improvements', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async applyImprovements(
+    data: ApplyImprovementsRequest
+  ): Promise<ApplyImprovementsResponse> {
+    return this.request<ApplyImprovementsResponse>('/document/apply-improvements', {
       method: 'POST',
       body: JSON.stringify(data),
     });

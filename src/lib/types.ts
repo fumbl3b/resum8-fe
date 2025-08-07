@@ -4,15 +4,8 @@ export interface JobAnalysisRequest {
 }
 
 export interface JobAnalysisResponse {
-  keywords: string[];
-  benefits: string[];
-  requirements: string[];
-  insights: {
-    company_culture?: string;
-    role_focus?: string;
-    required_skills?: string[];
-    preferred_skills?: string[];
-  };
+  keywords: string;
+  benefits: string;
 }
 
 // Resume Processing Types
@@ -33,31 +26,29 @@ export interface ResumeExtractResponse {
 export interface ResumeOptimizationRequest {
   resume_text: string;
   job_description: string;
-}
-
-export interface OptimizationSuggestion {
-  id: string;
-  type: 'addition' | 'modification' | 'removal' | 'keyword';
-  section: string;
-  current_text?: string;
-  suggested_text: string;
-  reasoning: string;
-  priority: 'high' | 'medium' | 'low';
-  confidence: number;
+  job_keywords?: string[];
 }
 
 export interface ResumeOptimizationResponse {
-  suggestions: OptimizationSuggestion[];
-  overall_score: number;
-  keyword_match_percentage: number;
-  missing_keywords: string[];
+  suggestions: string;
 }
 
-// LaTeX Generation Types
-export interface LaTeXGenerationRequest {
+// Document Apply Improvements Types
+export interface ApplyImprovementsRequest {
   resume_text: string;
-  template?: string;
-  optimizations?: OptimizationSuggestion[];
+  improvements: string;
+}
+
+export interface ApplyImprovementsResponse {
+  latex_code: string;
+  pdf_url?: string;
+  compilation_status: 'success' | 'error';
+  error_message?: string;
+}
+
+// LaTeX Generation Types (legacy - keeping for backward compatibility)
+export interface LaTeXGenerationRequest {
+  latex_content: string;
 }
 
 export interface LaTeXGenerationResponse {
@@ -75,7 +66,6 @@ export interface AppState {
   resumeText: string;
   jobAnalysis?: JobAnalysisResponse;
   optimizationResults?: ResumeOptimizationResponse;
-  acceptedSuggestions: string[];
   latexResult?: LaTeXGenerationResponse;
 }
 

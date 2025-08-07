@@ -14,7 +14,6 @@ export default function GeneratePage() {
   const { 
     resumeText,
     optimizationResults,
-    acceptedSuggestions,
     latexResult,
     setLatexResult,
     setCurrentStep
@@ -22,13 +21,12 @@ export default function GeneratePage() {
 
   const generateMutation = useMutation({
     mutationFn: () => {
-      const acceptedSuggestionsData = optimizationResults?.suggestions.filter(
-        s => acceptedSuggestions.includes(s.id)
-      ) || [];
-
-      return apiClient.generateLaTeX({
+      // Use the new apply-improvements endpoint
+      const improvements = optimizationResults?.suggestions || 'No specific improvements provided';
+      
+      return apiClient.applyImprovements({
         resume_text: resumeText,
-        optimizations: acceptedSuggestionsData
+        improvements: improvements
       });
     },
     onSuccess: (data) => {
@@ -83,7 +81,7 @@ export default function GeneratePage() {
   }
 
   return (
-    <div className="min-h-screen bg-background py-8">
+    <div className="min-h-screen bg-background pt-8 pb-8">
       <div className="container mx-auto px-4">
         <div className="max-w-6xl mx-auto">
           <div className="flex items-center justify-between mb-8">
@@ -195,30 +193,9 @@ export default function GeneratePage() {
                       </CardHeader>
                       <CardContent>
                         <div className="text-sm text-muted-foreground">
-                          {acceptedSuggestions.length > 0 ? (
-                            <div>
-                              <p className="mb-2">
-                                Applied {acceptedSuggestions.length} optimization{acceptedSuggestions.length !== 1 ? 's' : ''}:
-                              </p>
-                              <ul className="space-y-1">
-                                {optimizationResults?.suggestions
-                                  .filter(s => acceptedSuggestions.includes(s.id))
-                                  .slice(0, 5)
-                                  .map((suggestion, index) => (
-                                    <li key={index} className="flex items-center gap-2">
-                                      <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-                                      {suggestion.type} in {suggestion.section}
-                                    </li>
-                                  ))}
-                                {acceptedSuggestions.length > 5 && (
-                                  <li className="text-xs">
-                                    ...and {acceptedSuggestions.length - 5} more
-                                  </li>
-                                )}
-                              </ul>
-                            </div>
-                          ) : (
-                            <p>No optimizations were applied. The original resume was used.</p>
+                          <p>Resume generated with optimization suggestions applied from the previous step.</p>
+                          {optimizationResults && (
+                            <p className="mt-2">Based on the AI analysis, your resume has been optimized for better job matching.</p>
                           )}
                         </div>
                       </CardContent>

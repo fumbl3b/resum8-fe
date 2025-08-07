@@ -58,7 +58,7 @@ export default function AnalyzePage() {
   }
 
   return (
-    <div className="min-h-screen bg-background py-8">
+    <div className="min-h-screen bg-background pt-8 pb-8">
       <div className="container mx-auto px-4">
         <div className="max-w-6xl mx-auto">
           <div className="flex items-center justify-between mb-8">
@@ -113,67 +113,31 @@ export default function AnalyzePage() {
 
           {jobAnalysis && (
             <>
-              <div className="grid md:grid-cols-2 gap-6 mb-8">
-                <KeywordDisplay
-                  title="Key Skills & Keywords"
-                  description="Important keywords found in the job description"
-                  keywords={jobAnalysis.keywords || []}
-                />
-                
-                <KeywordDisplay
-                  title="Job Benefits"
-                  description="Benefits and perks mentioned in the posting"
-                  keywords={jobAnalysis.benefits || []}
-                  variant="secondary"
-                />
-              </div>
-
-              <div className="grid md:grid-cols-2 gap-6 mb-8">
-                <KeywordDisplay
-                  title="Requirements"
-                  description="Must-have qualifications and skills"
-                  keywords={jobAnalysis.requirements || []}
-                  variant="outline"
-                />
-
-                {jobAnalysis.insights?.required_skills && (
-                  <KeywordDisplay
-                    title="Required Skills"
-                    description="Essential technical and soft skills"
-                    keywords={jobAnalysis.insights.required_skills}
-                    variant="destructive"
-                  />
-                )}
-              </div>
-
-              {jobAnalysis.insights && (
-                <Card className="mb-8">
+              <div className="grid md:grid-cols-1 gap-6 mb-8">
+                <Card>
                   <CardHeader>
-                    <CardTitle>AI Insights</CardTitle>
+                    <CardTitle>Key Skills & Keywords</CardTitle>
                     <CardDescription>
-                      Additional insights extracted from the job description
+                      Important keywords found in the job description
                     </CardDescription>
                   </CardHeader>
-                  <CardContent className="space-y-4">
-                    {jobAnalysis.insights.company_culture && (
-                      <div>
-                        <h4 className="font-medium mb-2">Company Culture</h4>
-                        <p className="text-sm text-muted-foreground">
-                          {jobAnalysis.insights.company_culture}
-                        </p>
-                      </div>
-                    )}
-                    {jobAnalysis.insights.role_focus && (
-                      <div>
-                        <h4 className="font-medium mb-2">Role Focus</h4>
-                        <p className="text-sm text-muted-foreground">
-                          {jobAnalysis.insights.role_focus}
-                        </p>
-                      </div>
-                    )}
+                  <CardContent>
+                    <p className="text-sm">{jobAnalysis.keywords}</p>
                   </CardContent>
                 </Card>
-              )}
+                
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Job Benefits</CardTitle>
+                    <CardDescription>
+                      Benefits and perks mentioned in the posting
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-muted-foreground">{jobAnalysis.benefits}</p>
+                  </CardContent>
+                </Card>
+              </div>
 
               <Card>
                 <CardHeader>
@@ -185,7 +149,7 @@ export default function AnalyzePage() {
                 <CardContent>
                   <div className="flex items-center justify-between">
                     <div className="text-sm text-muted-foreground">
-                      Found {jobAnalysis.keywords?.length || 0} keywords and {jobAnalysis.requirements?.length || 0} requirements
+                      Job analysis complete - ready for optimization
                     </div>
                     <Button
                       onClick={handleNext}

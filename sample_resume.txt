@@ -1,0 +1,14 @@
+John Smith
+Software Engineer
+
+EXPERIENCE
+Senior Frontend Developer | ABC Corp | 2020-2023
+- Developed React applications using JavaScript
+- Built responsive web interfaces
+- Collaborated with backend team
+
+SKILLS
+- JavaScript
+- React
+- HTML/CSS
+- Git

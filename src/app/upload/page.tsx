@@ -1,16 +1,25 @@
 'use client';
 
+import { useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { JobDescriptionInput } from '@/components/forms/job-description-input';
 import { ResumeUploader } from '@/components/forms/resume-uploader';
 import { useAppStore } from '@/stores/app-store';
+import { useAuth } from '@/hooks/useAuth';
 import { ArrowLeft, ArrowRight } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 export default function UploadPage() {
   const router = useRouter();
+  const { isAuthenticated, isLoading } = useAuth();
   const { jobDescription, resumeText, setCurrentStep } = useAppStore();
+
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      router.push('/login');
+    }
+  }, [isAuthenticated, isLoading, router]);
 
   const canProceed = jobDescription.trim() && resumeText.trim();
 
@@ -25,8 +34,23 @@ export default function UploadPage() {
     router.push('/');
   };
 
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background pt-8 pb-8 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return null; // Will redirect to login
+  }
+
   return (
-    <div className="min-h-screen bg-background py-8">
+    <div className="min-h-screen bg-background pt-8 pb-8">
       <div className="container mx-auto px-4">
         <div className="max-w-4xl mx-auto">
           <div className="flex items-center justify-between mb-8">

@@ -22,9 +22,25 @@ export function ResumeUploader() {
     },
   });
 
-  const onDrop = useCallback((acceptedFiles: File[]) => {
+  const onDrop = useCallback((acceptedFiles: File[], fileRejections: any[]) => {
+    // Handle rejected files
+    if (fileRejections.length > 0) {
+      console.error('File rejected:', fileRejections[0]);
+      return;
+    }
+
     const file = acceptedFiles[0];
     if (file) {
+      // Validate file extension
+      const allowedExtensions = ['pdf', 'doc', 'docx', 'tex'];
+      const fileExtension = file.name.split('.').pop()?.toLowerCase();
+      
+      if (!fileExtension || !allowedExtensions.includes(fileExtension)) {
+        console.error(`Unsupported file type: ${fileExtension}`);
+        return;
+      }
+
+      console.log(`Uploading file: ${file.name} (${fileExtension})`);
       setResumeFile(file);
       extractTextMutation.mutate(file);
     }
@@ -36,9 +52,10 @@ export function ResumeUploader() {
       'application/pdf': ['.pdf'],
       'application/msword': ['.doc'],
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
-      'text/plain': ['.txt'],
+      'application/x-tex': ['.tex'],
     },
     multiple: false,
+    maxSize: 10 * 1024 * 1024, // 10MB limit
   });
 
   const handleRemove = () => {
@@ -51,7 +68,7 @@ export function ResumeUploader() {
       <CardHeader>
         <CardTitle>Upload Resume</CardTitle>
         <CardDescription>
-          Upload your resume in PDF, DOC, DOCX, or TXT format
+          Upload your resume in PDF, DOC, DOCX, or TEX format
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -73,7 +90,7 @@ export function ResumeUploader() {
               Drag and drop or click to select a file
             </p>
             <p className="text-xs text-muted-foreground/70 mt-2">
-              Supports PDF, DOC, DOCX, TXT (max 10MB)
+              Supports PDF, DOC, DOCX, TEX (max 10MB)
             </p>
           </div>
         ) : (
@@ -105,7 +122,12 @@ export function ResumeUploader() {
 
             {extractTextMutation.isError && (
               <div className="text-sm text-destructive">
-                Failed to extract text. Please try a different file.
+                <p className="font-medium">Failed to extract text</p>
+                <p className="mt-1">
+                  {extractTextMutation.error?.details || 
+                   extractTextMutation.error?.message || 
+                   'Please try a different file or format (PDF, DOC, DOCX, TEX).'}
+                </p>
               </div>
             )}
 

@@ -1,0 +1,11 @@
+John Doe
+Software Engineer
+
+EXPERIENCE
+• Senior Developer at Tech Corp (2020-2023)
+• Built React applications
+• Worked with APIs
+
+SKILLS
+• JavaScript, React, Node.js
+• Python, SQL

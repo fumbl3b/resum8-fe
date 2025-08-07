@@ -13,7 +13,6 @@ interface AppStore extends AppState {
   setResumeText: (text: string) => void;
   setJobAnalysis: (analysis: JobAnalysisResponse) => void;
   setOptimizationResults: (results: ResumeOptimizationResponse) => void;
-  toggleSuggestion: (suggestionId: string) => void;
   setLatexResult: (result: LaTeXGenerationResponse) => void;
   reset: () => void;
 }
@@ -22,7 +21,6 @@ const initialState: AppState = {
   currentStep: 'upload',
   jobDescription: '',
   resumeText: '',
-  acceptedSuggestions: [],
 };
 
 export const useAppStore = create<AppStore>((set, get) => ({
@@ -39,17 +37,6 @@ export const useAppStore = create<AppStore>((set, get) => ({
   setJobAnalysis: (jobAnalysis) => set({ jobAnalysis }),
   
   setOptimizationResults: (optimizationResults) => set({ optimizationResults }),
-  
-  toggleSuggestion: (suggestionId) => {
-    const { acceptedSuggestions } = get();
-    const isAccepted = acceptedSuggestions.includes(suggestionId);
-    
-    set({
-      acceptedSuggestions: isAccepted
-        ? acceptedSuggestions.filter(id => id !== suggestionId)
-        : [...acceptedSuggestions, suggestionId]
-    });
-  },
   
   setLatexResult: (latexResult) => set({ latexResult }),
   
