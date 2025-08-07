@@ -12,7 +12,7 @@ import {
   APIError,
 } from './types';
 
-const API_BASE_URL = '/api';
+const API_BASE_URL = 'https://resume-bknd.onrender.com';
 
 class APIClient {
   private async request<T>(

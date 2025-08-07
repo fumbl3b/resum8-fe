@@ -29,21 +29,31 @@ export interface ResumeOptimizationRequest {
   job_keywords?: string[];
 }
 
+export interface OptimizationSuggestion {
+  id: string;
+  title: string;
+  description: string;
+  impact: 'high' | 'medium' | 'low';
+  category: 'keywords' | 'formatting' | 'content' | 'skills';
+  originalText?: string;
+  suggestedText?: string;
+}
+
 export interface ResumeOptimizationResponse {
-  suggestions: string;
+  suggestions: OptimizationSuggestion[] | string; // Can be array or string from backend
+  rawSuggestions?: string; // Keep for backward compatibility
 }
 
 // Document Apply Improvements Types
 export interface ApplyImprovementsRequest {
-  resume_text: string;
-  improvements: string;
+  document_text: string; // Required
+  suggestions: string; // Required
+  document_type?: string; // Optional, default: 'general'
+  output_format?: string; // Optional, default: 'text'
 }
 
 export interface ApplyImprovementsResponse {
-  latex_code: string;
-  pdf_url?: string;
-  compilation_status: 'success' | 'error';
-  error_message?: string;
+  improved_content: string; // The actual response field
 }
 
 // LaTeX Generation Types (legacy - keeping for backward compatibility)
@@ -66,6 +76,7 @@ export interface AppState {
   resumeText: string;
   jobAnalysis?: JobAnalysisResponse;
   optimizationResults?: ResumeOptimizationResponse;
+  selectedSuggestions: string[]; // Array of suggestion IDs
   latexResult?: LaTeXGenerationResponse;
 }
 
