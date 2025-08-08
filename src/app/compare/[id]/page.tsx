@@ -7,21 +7,23 @@ import { ComparisonSession } from '@/lib/types';
 import { Stepper } from '@/components/comparison/Stepper';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Download } from 'lucide-react';
+import { Download, FileUp } from 'lucide-react';
 import { DiffView } from '@/components/comparison/DiffView';
+import { ExportModal } from '@/components/comparison/ExportModal';
 
 export default function ComparisonSessionPage() {
   const params = useParams();
-  const sessionId = params.id as string;
+  const sessionId = parseInt(params.id as string);
   const [session, setSession] = useState<ComparisonSession | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
   useEffect(() => {
     if (!sessionId) return;
 
     const pollSession = async () => {
       try {
-        const data = await apiClient.getComparison(parseInt(sessionId));
+        const data = await apiClient.getComparison(sessionId);
         setSession(data);
 
         if (data.status !== 'DONE' && data.status !== 'ERROR') {
@@ -47,8 +49,12 @@ export default function ComparisonSessionPage() {
 
   return (
     <div className="container mx-auto py-10">
-      <div className="mb-8">
+      <div className="flex justify-between items-center mb-8">
         <Stepper steps={steps} />
+        <Button onClick={() => setIsExportModalOpen(true)} disabled={session.status !== 'DONE'}>
+          <FileUp className="mr-2 h-4 w-4" />
+          Export
+        </Button>
       </div>
 
       <Card>
@@ -56,10 +62,10 @@ export default function ComparisonSessionPage() {
           <CardTitle>Resume Comparison</CardTitle>
         </CardHeader>
         <CardContent>
-          {session.previews?.base_text && session.improved_text ? (
+          {session.diff_json && session.explanations ? (
             <DiffView 
-              baseText={session.previews.base_text} 
-              improvedText={session.improved_text} 
+              diffJson={session.diff_json} 
+              explanations={session.explanations} 
             />
           ) : (
             <p>Loading comparison...</p>
@@ -67,20 +73,18 @@ export default function ComparisonSessionPage() {
         </CardContent>
       </Card>
 
-      {session.status === 'DONE' && session.pdf_url && (
-        <div className="mt-8 text-center">
-          <Button onClick={() => apiClient.downloadComparison(session.id)}>
-            <Download className="mr-2 h-4 w-4" />
-            Download PDF
-          </Button>
-        </div>
-      )}
-
       {session.status === 'ERROR' && (
         <div className="mt-8 text-center text-red-500">
           <p>An error occurred during the comparison process.</p>
         </div>
       )}
+
+      <ExportModal 
+        sessionId={sessionId} 
+        isOpen={isExportModalOpen} 
+        onClose={() => setIsExportModalOpen(false)} 
+        initialPdfUrl={session.pdf_url}
+      />
     </div>
   );
 }
