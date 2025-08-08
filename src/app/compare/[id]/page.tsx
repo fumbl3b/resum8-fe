@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Download, FileUp } from 'lucide-react';
 import { DiffView } from '@/components/comparison/DiffView';
 import { ExportModal } from '@/components/comparison/ExportModal';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export default function ComparisonSessionPage() {
   const params = useParams();
@@ -44,7 +45,21 @@ export default function ComparisonSessionPage() {
   }
 
   if (!session) {
-    return <div className="container mx-auto py-10 text-center">Loading session...</div>;
+    return (
+      <div className="container mx-auto py-10">
+        <div className="mb-8">
+          <Skeleton className="h-8 w-full" />
+        </div>
+        <Card>
+          <CardHeader>
+            <Skeleton className="h-6 w-1/3" />
+          </CardHeader>
+          <CardContent>
+            <Skeleton className="h-48 w-full" />
+          </CardContent>
+        </Card>
+      </div>
+    );
   }
 
   return (

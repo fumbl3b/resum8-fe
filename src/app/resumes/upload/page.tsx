@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useDropzone } from 'react-dropzone';
 import { apiClient } from '@/lib/api';
 import { CreateResumeRequest } from '@/lib/types';
+import { useToast } from '@/components/ui/use-toast';
 
 const uploadSchema = z.object({
   title: z.string().min(1, 'Title is required'),
@@ -22,7 +23,7 @@ type UploadSchema = z.infer<typeof uploadSchema>;
 export default function UploadResumePage() {
   const router = useRouter();
   const [isUploading, setIsUploading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { toast } = useToast();
 
   const {
     register,
@@ -51,13 +52,20 @@ export default function UploadResumePage() {
 
   const onSubmit = async (data: UploadSchema) => {
     setIsUploading(true);
-    setError(null);
 
     try {
       await apiClient.createResume(data);
+      toast({
+        title: "Success!",
+        description: "Resume uploaded successfully.",
+      });
       router.push('/resumes');
     } catch (err) {
-      setError('Failed to upload resume.');
+      toast({
+        title: "Error",
+        description: "Failed to upload resume.",
+        variant: "destructive",
+      });
     } finally {
       setIsUploading(false);
     }

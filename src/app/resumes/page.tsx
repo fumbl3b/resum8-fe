@@ -11,6 +11,7 @@ import { PlusCircle, Upload, MoreVertical, Trash2, Star } from 'lucide-react';
 import { apiClient } from '@/lib/api';
 import { ResumeDocument } from '@/lib/types';
 import { useGlobalStore } from '@/stores/global-store';
+import { useToast } from '@/components/ui/use-toast';
 
 export default function ResumeLibrary() {
   const router = useRouter();
@@ -40,12 +41,23 @@ export default function ResumeLibrary() {
     router.push('/resumes/upload');
   };
 
+  const { toast } = useToast();
+
   const handleSetDefault = async (resumeId: number) => {
     try {
       await apiClient.setDefaultResume(resumeId);
       await fetchUserSummary();
+      toast({
+        title: "Success!",
+        description: "Default resume set successfully.",
+      });
     } catch (error) {
       console.error("Failed to set default resume", error);
+      toast({
+        title: "Error",
+        description: "Failed to set default resume.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -56,8 +68,17 @@ export default function ResumeLibrary() {
       if (userSummary?.default_resume_id === resumeId) {
         await fetchUserSummary();
       }
+      toast({
+        title: "Success!",
+        description: "Resume deleted successfully.",
+      });
     } catch (error) {
       console.error("Failed to delete resume", error);
+      toast({
+        title: "Error",
+        description: "Failed to delete resume.",
+        variant: "destructive",
+      });
     }
   };
 

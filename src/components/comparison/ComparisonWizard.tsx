@@ -5,12 +5,13 @@ import { useRouter } from 'next/navigation';
 import { ChooseInputsStep } from './ChooseInputsStep';
 import { apiClient } from '@/lib/api';
 import { useGlobalStore } from '@/stores/global-store';
+import { useToast } from '@/components/ui/use-toast';
 
 export function ComparisonWizard() {
   const router = useRouter();
   const { userSummary } = useGlobalStore();
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { toast } = useToast();
 
   const handleStartComparison = async (
     comparisonType: string, 
@@ -18,12 +19,17 @@ export function ComparisonWizard() {
     jobDescription?: string
   ) => {
     setIsLoading(true);
-    setError(null);
 
     try {
       const base_resume_id = userSummary?.default_resume_id;
       if (!base_resume_id) {
-        throw new Error('No default resume set.');
+        toast({
+          title: "Error",
+          description: "Please set a default resume first.",
+          variant: "destructive",
+        });
+        setIsLoading(false);
+        return;
       }
 
       const response = await apiClient.startComparison({
@@ -32,9 +38,17 @@ export function ComparisonWizard() {
         job_description: jobDescription,
       });
 
+      toast({
+        title: "Comparison Started!",
+        description: "Your resume is being optimized.",
+      });
       router.push(`/compare/${response.id}`);
     } catch (err) {
-      setError('Failed to start comparison.');
+      toast({
+        title: "Error",
+        description: "Failed to start comparison.",
+        variant: "destructive",
+      });
     } finally {
       setIsLoading(false);
     }
