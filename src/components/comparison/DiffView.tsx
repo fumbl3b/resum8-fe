@@ -1,61 +1,82 @@
 'use client';
 
-import { useState } from 'react';
-import * as Diff from 'diff';
+import { useState, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { Badge } from '@/components/ui/badge';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Explanation, DiffToken } from '@/lib/types';
 
 interface DiffViewProps {
-  baseText: string;
-  improvedText: string;
-  // diffJson and explanations will be used later
+  diffJson: DiffToken[];
+  explanations: Explanation[];
 }
 
-export function DiffView({ baseText, improvedText }: DiffViewProps) {
+export function DiffView({ diffJson, explanations }: DiffViewProps) {
   const [viewMode, setViewMode] = useState('unified');
-  const differences = Diff.diffLines(baseText, improvedText);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
 
-  const renderUnifiedView = () => (
-    <div className="prose max-w-none font-mono text-sm whitespace-pre-wrap">
-      {differences.map((part, index) => {
-        const style = {
-          backgroundColor: part.added ? '#ddf4ff' : part.removed ? '#ffebe9' : 'transparent',
-          textDecoration: part.removed ? 'line-through' : 'none',
-          display: 'block',
-        };
+  const categories = useMemo(() => {
+    const allCategories = explanations.map(e => e.category);
+    return [...new Set(allCategories)];
+  }, [explanations]);
+
+  const filteredExplanations = useMemo(() => {
+    if (selectedCategories.length === 0) {
+      return explanations;
+    }
+    return explanations.filter(e => selectedCategories.includes(e.category));
+  }, [explanations, selectedCategories]);
+
+  const renderTokens = (tokens: DiffToken[], view: 'base' | 'improved') => {
+    // This is a simplified rendering logic. A more robust implementation
+    // would handle nested tokens and more complex diff structures.
+    return tokens.map((token, index) => {
+      const explanation = filteredExplanations.find(e => e.range[0] >= token.range[0] && e.range[1] <= token.range[1]);
+      const style = {
+        backgroundColor: token.op === 'add' ? '#ddf4ff' : token.op === 'del' ? '#ffebe9' : 'transparent',
+        textDecoration: token.op === 'del' ? 'line-through' : 'none',
+      };
+
+      if (explanation) {
         return (
-          <span key={index} style={style}>
-            {part.value}
-          </span>
+          <Popover key={index}>
+            <PopoverTrigger asChild>
+              <span style={style} className="cursor-pointer">{token.value}</span>
+            </PopoverTrigger>
+            <PopoverContent>
+              <p className="font-bold">{explanation.category}</p>
+              <p>{explanation.note}</p>
+            </PopoverContent>
+          </Popover>
         );
-      })}
-    </div>
-  );
+      }
 
-  const renderSplitView = () => (
-    <div className="grid grid-cols-2 gap-4 font-mono text-sm whitespace-pre-wrap">
-      <div>
-        <h4 className="font-bold mb-2">Original</h4>
-        {differences.map((part, index) => (
-          <span key={index} style={{ backgroundColor: part.removed ? '#ffebe9' : 'transparent', display: 'block' }}>
-            {part.removed || !part.added ? part.value : '\n'}
-          </span>
-        ))}
-      </div>
-      <div>
-        <h4 className="font-bold mb-2">Improved</h4>
-        {differences.map((part, index) => (
-          <span key={index} style={{ backgroundColor: part.added ? '#ddf4ff' : 'transparent', display: 'block' }}>
-            {part.added || !part.removed ? part.value : '\n'}
-          </span>
-        ))}
-      </div>
-    </div>
-  );
+      return <span key={index} style={style}>{token.value}</span>;
+    });
+  };
 
   return (
     <div>
-      <div className="flex justify-end mb-4">
+      <div className="flex justify-between items-center mb-4">
+        <div>
+          {categories.map(category => (
+            <Badge
+              key={category}
+              variant={selectedCategories.includes(category) ? 'default' : 'secondary'}
+              onClick={() => {
+                setSelectedCategories(prev => 
+                  prev.includes(category) 
+                    ? prev.filter(c => c !== category) 
+                    : [...prev, category]
+                );
+              }}
+              className="cursor-pointer mr-2"
+            >
+              {category}
+            </Badge>
+          ))}
+        </div>
         <ToggleGroup type="single" value={viewMode} onValueChange={setViewMode} aria-label="Diff view mode">
           <ToggleGroupItem value="unified" aria-label="Unified view">
             Unified
@@ -65,7 +86,7 @@ export function DiffView({ baseText, improvedText }: DiffViewProps) {
           </ToggleGroupItem>
         </ToggleGroup>
       </div>
-      {viewMode === 'unified' ? renderUnifiedView() : renderSplitView()}
+      {/* Rendering logic needs to be updated to handle the diffJson structure */}
     </div>
   );
 }
