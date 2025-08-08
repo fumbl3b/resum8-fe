@@ -57,7 +57,6 @@ export function ComparisonWizard() {
   return (
     <div>
       <ChooseInputsStep onNext={handleStartComparison} />
-      {error && <p className="text-red-500 mt-4">{error}</p>}
       {isLoading && <p>Starting comparison...</p>}
     </div>
   );

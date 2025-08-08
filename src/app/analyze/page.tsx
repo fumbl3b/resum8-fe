@@ -3,8 +3,9 @@
 import { useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { useAppStore } from '@/stores/app-store';
-import { ArrowLeft, ArrowRight, Loader2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Loader2, TrendingUp, CheckCircle, AlertTriangle, Zap } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useMutation } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
@@ -135,102 +136,106 @@ export default function AnalyzePage() {
   }
 
   return (
-    <div className="min-h-screen bg-background pt-8 pb-8">
-      <div className="container mx-auto px-4">
-        <div className="max-w-6xl mx-auto">
-          <div className="flex items-center justify-between mb-8">
-            <Button
-              variant="outline"
-              onClick={handleBack}
-              className="flex items-center gap-2"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Back to Upload
-            </Button>
-            <h1 className="text-2xl font-bold text-foreground">
-              Job Analysis Results
-            </h1>
-            <div className="w-32" />
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 pt-8 pb-8">
+      <div className="container mx-auto px-4 max-w-5xl">
+        <div className="mb-6">
+          <Button
+            variant="ghost"
+            onClick={handleBack}
+            className="mb-4"
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back to Upload
+          </Button>
+          
+          <div className="text-center mb-8">
+            <Badge variant="secondary" className="mb-4">
+              <TrendingUp className="w-4 h-4 mr-2" />
+              Analysis Complete
+            </Badge>
+            <h1 className="text-4xl font-bold mb-4">Your Job Analysis Results</h1>
+            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+              We&apos;ve analyzed the job posting and your resume to provide targeted optimization suggestions
+            </p>
           </div>
+        </div>
 
-          {(analyzeMutation.isPending || optimizeMutation.isPending) && (
-            <Card className="mb-8">
-              <CardContent className="flex items-center justify-center py-12">
-                <div className="text-center">
-                  <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
-                  <p className="text-lg font-medium">
-                    {analyzeMutation.isPending ? 'Analyzing job description...' : 'Getting optimization suggestions...'}
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    {analyzeMutation.isPending 
-                      ? 'Our AI is extracting keywords, requirements, and insights'
-                      : 'Analyzing your resume and generating personalized suggestions'
-                    }
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {analyzeMutation.isError && (
-            <Card className="mb-8 border-destructive/50 bg-destructive/10">
-              <CardContent className="py-6">
-                <div className="text-center">
-                  <p className="text-lg font-medium text-destructive mb-2">
-                    Analysis Failed
-                  </p>
-                  <p className="text-sm text-destructive/80 mb-4">
-                    We couldn&apos;t analyze the job description. Please try again.
-                  </p>
-                  <Button
-                    onClick={() => analyzeMutation.mutate()}
-                    variant="outline"
-                  >
-                    Retry Analysis
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {jobAnalysis && (
-            <>
-              <div className="grid md:grid-cols-1 gap-6 mb-8">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Key Skills & Keywords</CardTitle>
-                    <CardDescription>
-                      Important keywords found in the job description
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm">{jobAnalysis.keywords}</p>
-                  </CardContent>
-                </Card>
-                
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Job Benefits</CardTitle>
-                    <CardDescription>
-                      Benefits and perks mentioned in the posting
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-muted-foreground">{jobAnalysis.benefits}</p>
-                  </CardContent>
-                </Card>
+        {(analyzeMutation.isPending || optimizeMutation.isPending) && (
+          <Card className="mb-8">
+            <CardContent className="flex items-center justify-center py-12">
+              <div className="text-center">
+                <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-primary" />
+                <p className="text-lg font-medium">
+                  {analyzeMutation.isPending ? 'Analyzing job description...' : 'Getting optimization suggestions...'}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  {analyzeMutation.isPending 
+                    ? 'Our AI is extracting keywords, requirements, and insights'
+                    : 'Analyzing your resume and generating personalized suggestions'
+                  }
+                </p>
               </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {analyzeMutation.isError && (
+          <Card className="mb-8 border-destructive/50 bg-destructive/10">
+            <CardContent className="py-6">
+              <div className="text-center">
+                <p className="text-lg font-medium text-destructive mb-2">
+                  Analysis Failed
+                </p>
+                <p className="text-sm text-destructive/80 mb-4">
+                  We couldn&apos;t analyze the job description. Please try again.
+                </p>
+                <Button
+                  onClick={() => analyzeMutation.mutate()}
+                  variant="outline"
+                >
+                  Retry Analysis
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {jobAnalysis && (
+            <>
+              {/* Job Analysis Results */}
+              <Card className="mb-6">
+                <CardHeader>
+                  <CardTitle className="flex items-center">
+                    <TrendingUp className="mr-2 h-5 w-5" />
+                    Job Analysis Results
+                  </CardTitle>
+                  <CardDescription>
+                    Key requirements and insights extracted from the job posting
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div>
+                      <h4 className="font-semibold mb-2">Required Skills & Keywords</h4>
+                      <div className="text-sm text-muted-foreground">
+                        {jobAnalysis.keywords}
+                      </div>
+                    </div>
+                    <div>
+                      <h4 className="font-semibold mb-2">Benefits & Perks</h4>
+                      <div className="text-sm text-muted-foreground">
+                        {jobAnalysis.benefits}
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
 
               {optimizationResults?.suggestions && (
-                <Card className="mb-8">
-                  <CardHeader>
+                <>
+                  <div className="space-y-4 mb-8">
                     <div className="flex items-center justify-between">
-                      <div>
-                        <CardTitle>Resume Optimization Suggestions</CardTitle>
-                        <CardDescription>
-                          Select which improvements you&apos;d like to apply to your resume
-                        </CardDescription>
-                      </div>
+                      <h2 className="text-2xl font-semibold">Optimization Suggestions</h2>
                       <div className="flex gap-2">
                         <Button
                           variant="outline"
@@ -250,39 +255,50 @@ export default function AnalyzePage() {
                         </Button>
                       </div>
                     </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      {optimizationResults.suggestions.map((suggestion) => (
-                        <div key={suggestion.id} className="flex items-start space-x-3 p-4 border rounded-lg hover:bg-muted/50 transition-colors">
-                          <input
-                            type="checkbox"
-                            id={suggestion.id}
-                            checked={selectedSuggestions.includes(suggestion.id)}
-                            onChange={() => toggleSuggestion(suggestion.id)}
-                            className="mt-1 h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded"
-                          />
-                          <div className="flex-1 min-w-0">
-                            <label htmlFor={suggestion.id} className="cursor-pointer">
-                              <div className="flex items-center space-x-2 mb-1">
-                                <h4 className="text-sm font-medium text-foreground">{suggestion.title}</h4>
-                                <span className={`px-2 py-1 text-xs rounded-full ${
-                                  suggestion.impact === 'high' ? 'bg-red-100 text-red-800' :
-                                  suggestion.impact === 'medium' ? 'bg-yellow-100 text-yellow-800' :
-                                  'bg-green-100 text-green-800'
-                                }`}>
-                                  {suggestion.impact} impact
-                                </span>
-                                <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full">
-                                  {suggestion.category}
-                                </span>
+                    
+                    {optimizationResults.suggestions.map((suggestion) => (
+                      <Card key={suggestion.id} className={`cursor-pointer transition-all hover:shadow-md ${
+                        selectedSuggestions.includes(suggestion.id) ? 'ring-2 ring-primary' : ''
+                      }`} onClick={() => toggleSuggestion(suggestion.id)}>
+                        <CardContent className="pt-6">
+                          <div className="flex items-start space-x-3">
+                            <div className="flex items-center mt-1">
+                              <input
+                                type="checkbox"
+                                id={suggestion.id}
+                                checked={selectedSuggestions.includes(suggestion.id)}
+                                onChange={() => toggleSuggestion(suggestion.id)}
+                                className="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded"
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                              <div className="ml-3">
+                                {suggestion.impact === 'high' && <CheckCircle className="h-5 w-5 text-green-500" />}
+                                {suggestion.impact === 'medium' && <AlertTriangle className="h-5 w-5 text-yellow-500" />}
+                                {suggestion.impact === 'low' && <Zap className="h-5 w-5 text-blue-500" />}
                               </div>
-                              <p className="text-sm text-muted-foreground">{suggestion.description}</p>
-                            </label>
+                            </div>
+                            <div className="flex-1">
+                              <h4 className={`font-semibold ${
+                                suggestion.impact === 'high' ? 'text-green-700' :
+                                suggestion.impact === 'medium' ? 'text-yellow-700' :
+                                'text-blue-700'
+                              }`}>
+                                {suggestion.impact === 'high' && 'High Impact'}
+                                {suggestion.impact === 'medium' && 'Medium Impact'}
+                                {suggestion.impact === 'low' && 'Enhancement'}
+                              </h4>
+                              <p className="text-sm font-medium mb-2">{suggestion.title}</p>
+                              <p className="text-xs text-muted-foreground mb-2">
+                                {suggestion.description}
+                              </p>
+                              <Badge variant="secondary" className="text-xs">
+                                {suggestion.category}
+                              </Badge>
+                            </div>
                           </div>
-                        </div>
-                      ))}
-                    </div>
+                        </CardContent>
+                      </Card>
+                    ))}
                     
                     {selectedSuggestions.length === 0 && (
                       <div className="mt-6 p-4 bg-muted/30 rounded-lg text-center">
@@ -291,42 +307,42 @@ export default function AnalyzePage() {
                         </p>
                       </div>
                     )}
-                  </CardContent>
-                </Card>
+                  </div>
+                </>
               )}
 
-              <Card>
-                <CardHeader>
-                  <CardTitle>Next: Review Your Changes</CardTitle>
-                  <CardDescription>
+              {/* CTA */}
+              <Card className="text-center">
+                <CardContent className="pt-6">
+                  <h3 className="text-xl font-semibold mb-2">
                     {selectedSuggestions.length > 0 
-                      ? `Ready to implement ${selectedSuggestions.length} selected improvement${selectedSuggestions.length === 1 ? '' : 's'}`
-                      : 'Select suggestions above to proceed with optimization'
+                      ? 'Ready to optimize your resume?' 
+                      : 'Select suggestions to continue'
                     }
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center justify-between">
-                    <div className="text-sm text-muted-foreground">
-                      {selectedSuggestions.length > 0 
-                        ? 'View changes and generate your optimized resume'
-                        : 'Analysis complete - select suggestions to continue'
-                      }
-                    </div>
-                    <Button
+                  </h3>
+                  <p className="text-muted-foreground mb-4">
+                    {selectedSuggestions.length > 0 
+                      ? `Apply ${selectedSuggestions.length} selected improvement${selectedSuggestions.length === 1 ? '' : 's'} and generate your optimized resume`
+                      : 'Choose which suggestions to apply to your resume above'
+                    }
+                  </p>
+                  <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                    <Button 
                       onClick={handleNext}
                       disabled={selectedSuggestions.length === 0}
-                      className="flex items-center gap-2"
+                      size="lg"
                     >
-                      Review Changes
-                      <ArrowRight className="h-4 w-4" />
+                      <ArrowRight className="mr-2 h-4 w-4" />
+                      Apply Changes & Generate
+                    </Button>
+                    <Button variant="outline" onClick={handleBack} size="lg">
+                      Back to Upload
                     </Button>
                   </div>
                 </CardContent>
               </Card>
-            </>
-          )}
-        </div>
+          </>
+        )}
       </div>
     </div>
   );

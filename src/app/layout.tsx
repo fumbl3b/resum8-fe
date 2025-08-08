@@ -4,6 +4,7 @@ import "./globals.css";
 import { Providers } from "./providers";
 import { Header } from "@/components/layout/header";
 import { RouteGuard } from "@/components/auth/route-guard";
+import { Toaster } from "@/components/ui/toaster";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -34,6 +35,7 @@ export default function RootLayout({
           <RouteGuard>
             <Header />
             {children}
+            <Toaster />
           </RouteGuard>
         </Providers>
       </body>

@@ -18,7 +18,7 @@ export function Header() {
 
   const handleHome = () => {
     if (isAuthenticated) {
-      router.push('/upload');
+      router.push('/dashboard');
     } else {
       router.push('/');
     }

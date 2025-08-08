@@ -2,14 +2,12 @@
 
 import { useState, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Badge } from '@/components/ui/badge';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Explanation, DiffToken } from '@/lib/types';
+import { ExplanationItem, DiffToken } from '@/lib/types';
 
 interface DiffViewProps {
-  diffJson: DiffToken[];
-  explanations: Explanation[];
+  diffJson: DiffToken[] | { ops: Array<{ op: string; text?: string; new?: string; old?: string }> };
+  explanations: ExplanationItem[];
 }
 
 export function DiffView({ diffJson, explanations }: DiffViewProps) {
@@ -28,6 +26,19 @@ export function DiffView({ diffJson, explanations }: DiffViewProps) {
     return explanations.filter(e => selectedCategories.includes(e.category));
   }, [explanations, selectedCategories]);
 
+  const processedTokens = useMemo(() => {
+    // Handle new API format with ops array
+    if (diffJson && typeof diffJson === 'object' && 'ops' in diffJson) {
+      return diffJson.ops.map((op, index: number) => ({
+        op: op.op,
+        content: op.text || op.new || op.old || '',
+        range: [index, index + 1] as [number, number]
+      }));
+    }
+    // Handle legacy format
+    return Array.isArray(diffJson) ? diffJson : [];
+  }, [diffJson]);
+
   const renderTokens = (tokens: DiffToken[], view: 'base' | 'improved') => {
     return tokens.map((token, index) => {
       // Filter tokens based on view mode
@@ -35,42 +46,40 @@ export function DiffView({ diffJson, explanations }: DiffViewProps) {
       if (view === 'improved' && token.op === 'del') return null;
 
       // Filter tokens based on selected categories
-      const relevantExplanations = filteredExplanations.filter(e => 
-        (token.range[0] < e.range[1] && token.range[1] > e.range[0])
-      );
+      const relevantExplanations = filteredExplanations.filter(e => {
+        if (!token.range || !e.range) return false;
+        return token.range[0] < e.range[1] && token.range[1] > e.range[0];
+      });
 
-      const style = {
-        backgroundColor: token.op === 'add' ? '#ddf4ff' : token.op === 'del' ? '#ffebe9' : 'transparent',
-        textDecoration: token.op === 'del' ? 'line-through' : 'none',
+      const getTokenClassName = () => {
+        if (token.op === 'add') return 'bg-green-100 text-green-800';
+        if (token.op === 'del') return 'bg-red-100 text-red-800 line-through';
+        return '';
       };
 
       if (relevantExplanations.length > 0) {
         return (
-          <Popover key={index}>
-            <PopoverTrigger asChild>
-              <span style={style} className="cursor-pointer">
-                {token.value}
-              </span>
-            </PopoverTrigger>
-            <PopoverContent className="w-80">
-              {relevantExplanations.map((exp, expIndex) => (
-                <div key={expIndex} className="mb-2 last:mb-0">
-                  <p className="font-bold text-sm">{exp.category}</p>
-                  <p className="text-xs text-muted-foreground">{exp.note}</p>
-                </div>
-              ))}
-            </PopoverContent>
-          </Popover>
+          <span 
+            key={index} 
+            className={`cursor-pointer ${getTokenClassName()}`}
+            title={relevantExplanations.map(e => `${e.category}: ${e.note}`).join('\n')}
+          >
+            {token.content}
+          </span>
         );
       }
 
-      return <span key={index} style={style}>{token.value}</span>;
+      return (
+        <span key={index} className={getTokenClassName()}>
+          {token.content}
+        </span>
+      );
     });
   };
 
   const renderUnifiedView = () => (
     <div className="prose max-w-none font-mono text-sm whitespace-pre-wrap">
-      {renderTokens(diffJson, 'improved')}
+      {renderTokens(processedTokens, 'improved')}
     </div>
   );
 
@@ -78,11 +87,11 @@ export function DiffView({ diffJson, explanations }: DiffViewProps) {
     <div className="grid grid-cols-2 gap-4 font-mono text-sm whitespace-pre-wrap">
       <div>
         <h4 className="font-bold mb-2">Original</h4>
-        {renderTokens(diffJson, 'base')}
+        {renderTokens(processedTokens, 'base')}
       </div>
       <div>
         <h4 className="font-bold mb-2">Improved</h4>
-        {renderTokens(diffJson, 'improved')}
+        {renderTokens(processedTokens, 'improved')}
       </div>
     </div>
   );
@@ -108,14 +117,22 @@ export function DiffView({ diffJson, explanations }: DiffViewProps) {
             </Badge>
           ))}
         </div>
-        <ToggleGroup type="single" value={viewMode} onValueChange={setViewMode} aria-label="Diff view mode">
-          <ToggleGroupItem value="unified" aria-label="Unified view">
+        <div className="flex gap-2">
+          <Button
+            variant={viewMode === 'unified' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setViewMode('unified')}
+          >
             Unified
-          </ToggleGroupItem>
-          <ToggleGroupItem value="split" aria-label="Split view">
+          </Button>
+          <Button
+            variant={viewMode === 'split' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setViewMode('split')}
+          >
             Split
-          </ToggleGroupItem>
-        </ToggleGroup>
+          </Button>
+        </div>
       </div>
       {viewMode === 'unified' ? renderUnifiedView() : renderSplitView()}
     </div>

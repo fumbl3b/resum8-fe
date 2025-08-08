@@ -8,7 +8,6 @@ import {
   ArrowRight, 
   Zap, 
   Target, 
-  Download, 
   CheckCircle, 
   TrendingUp,
   Users,

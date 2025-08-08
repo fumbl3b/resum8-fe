@@ -10,22 +10,22 @@ import {
   LaTeXGenerationRequest,
   LaTeXGenerationResponse,
   RegisterRequest,
+  RegisterResponse,
   LoginRequest,
   LoginResponse,
-  RefreshResponse,
   UserResponse,
   UserSummaryResponse,
   CreateResumeRequest,
   CreateResumeResponse,
   ResumesListResponse,
-  ResumeDocument,
   StartComparisonRequest,
   StartComparisonResponse,
   ComparisonSession,
   APIError,
+  LegacyAPIError,
 } from './types';
 
-const API_BASE_URL = 'https://resume-bknd.onrender.com';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001';
 
 class APIClient {
   private getAuthToken(): string | null {
@@ -60,19 +60,30 @@ class APIClient {
     });
 
     if (!response.ok) {
-      const error: APIError = {
-        message: `HTTP ${response.status}: ${response.statusText}`,
-        status: response.status,
-      };
-      
       try {
         const errorData = await response.json();
-        error.details = errorData.detail || errorData.message || errorData.error;
-      } catch {
-        // If error response isn't JSON, use status text
+        
+        // Handle new API error format
+        if (errorData.error) {
+          const apiError: APIError = errorData;
+          throw apiError;
+        }
+        
+        // Handle legacy error format for backward compatibility
+        const legacyError: LegacyAPIError = {
+          message: errorData.detail || errorData.message || `HTTP ${response.status}: ${response.statusText}`,
+          status: response.status,
+          details: errorData.error || errorData.detail,
+        };
+        throw legacyError;
+      } catch (parseError) {
+        // If error response isn't JSON, create legacy error
+        const fallbackError: LegacyAPIError = {
+          message: `HTTP ${response.status}: ${response.statusText}`,
+          status: response.status,
+        };
+        throw fallbackError;
       }
-      
-      throw error;
     }
 
     return response.json();
@@ -95,21 +106,30 @@ class APIClient {
     });
 
     if (!response.ok) {
-      const error: APIError = {
-        message: `HTTP ${response.status}: ${response.statusText}`,
-        status: response.status,
-      };
-      
       try {
         const errorData = await response.json();
-        error.details = errorData.error?.detail || errorData.detail || errorData.message;
-        console.error('Backend error details:', errorData);
-      } catch {
-        // If error response isn't JSON, use status text
-        console.error('Non-JSON error response');
+        
+        // Handle new API error format
+        if (errorData.error) {
+          const apiError: APIError = errorData;
+          throw apiError;
+        }
+        
+        // Handle legacy error format for backward compatibility
+        const legacyError: LegacyAPIError = {
+          message: errorData.detail || errorData.message || `HTTP ${response.status}: ${response.statusText}`,
+          status: response.status,
+          details: errorData.error || errorData.detail,
+        };
+        throw legacyError;
+      } catch (parseError) {
+        // If error response isn't JSON, create legacy error
+        const fallbackError: LegacyAPIError = {
+          message: `HTTP ${response.status}: ${response.statusText}`,
+          status: response.status,
+        };
+        throw fallbackError;
       }
-      
-      throw error;
     }
 
     return response.json();
@@ -147,8 +167,8 @@ class APIClient {
   }
 
   // Auth methods
-  async register(data: RegisterRequest): Promise<{ message: string }> {
-    return this.request<{ message: string }>('/auth/register', {
+  async register(data: RegisterRequest): Promise<RegisterResponse> {
+    return this.request<RegisterResponse>('/auth/register', {
       method: 'POST',
       body: JSON.stringify(data),
     });
@@ -161,9 +181,9 @@ class APIClient {
     });
   }
 
-  async refreshToken(): Promise<RefreshResponse> {
+  async refreshToken(): Promise<LoginResponse> {
     const refreshToken = typeof window !== 'undefined' ? localStorage.getItem('refresh_token') : null;
-    return this.request<RefreshResponse>('/auth/refresh', {
+    return this.request<LoginResponse>('/auth/refresh', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${refreshToken}`
@@ -189,7 +209,7 @@ class APIClient {
     formData.append('file', data.file);
     formData.append('title', data.title);
 
-    const response = await fetch(`${API_BASE_URL}/resumes`, {
+    const response = await fetch(`${API_BASE_URL}/resumes/`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${this.getAuthToken()}`
@@ -198,40 +218,57 @@ class APIClient {
     });
 
     if (!response.ok) {
-      const error: APIError = {
-        message: `HTTP ${response.status}: ${response.statusText}`,
-        status: response.status,
-      };
-      
       try {
         const errorData = await response.json();
-        error.details = errorData.detail || errorData.message || errorData.error;
-      } catch {
-        // If error response isn't JSON, use status text
+        
+        // Handle new API error format
+        if (errorData.error) {
+          const apiError: APIError = errorData;
+          throw apiError;
+        }
+        
+        // Handle legacy error format for backward compatibility
+        const legacyError: LegacyAPIError = {
+          message: errorData.detail || errorData.message || `HTTP ${response.status}: ${response.statusText}`,
+          status: response.status,
+          details: errorData.error || errorData.detail,
+        };
+        throw legacyError;
+      } catch (parseError) {
+        // If error response isn't JSON, create legacy error
+        const fallbackError: LegacyAPIError = {
+          message: `HTTP ${response.status}: ${response.statusText}`,
+          status: response.status,
+        };
+        throw fallbackError;
       }
-      
-      throw error;
     }
 
     return response.json();
   }
 
   async getResumes(): Promise<ResumesListResponse> {
-    return this.request<ResumesListResponse>('/resumes', {
+    return this.request<ResumesListResponse>('/resumes/', {
       method: 'GET',
     }, true);
   }
 
-  async setDefaultResume(resumeId: number): Promise<void> {
-    return this.request<void>(`/resumes/${resumeId}/set-default`, {
+  async setDefaultResume(resumeId: number): Promise<UserResponse> {
+    return this.request<UserResponse>(`/resumes/${resumeId}/set-default`, {
       method: 'PATCH',
     }, true);
   }
 
-  async deleteResume(resumeId: number): Promise<void> {
-    return this.request<void>(`/resumes/${resumeId}`, {
+  async deleteResume(resumeId: number): Promise<{ message: string }> {
+    return this.request<{ message: string }>(`/resumes/${resumeId}`, {
       method: 'DELETE',
     }, true);
+  }
+
+  async downloadResume(resumeId: number): Promise<void> {
+    const token = this.getAuthToken();
+    const url = `${API_BASE_URL}/resumes/${resumeId}/download`;
+    window.open(`${url}?token=${token}`, '_blank');
   }
 
   // Comparison Sessions
@@ -248,15 +285,58 @@ class APIClient {
     }, true);
   }
 
-  async exportComparison(sessionId: number): Promise<void> {
-    return this.request<void>(`/compare/${sessionId}/export`, {
+  async exportComparison(sessionId: number): Promise<{ message: string; session_id: number }> {
+    return this.request<{ message: string; session_id: number }>(`/compare/${sessionId}/export`, {
       method: 'POST',
     }, true);
   }
 
   async downloadComparison(sessionId: number): Promise<void> {
-    // This will redirect to the PDF URL
-    window.open(`${API_BASE_URL}/compare/${sessionId}/download`, '_blank');
+    const token = this.getAuthToken();
+    const url = `${API_BASE_URL}/compare/${sessionId}/download`;
+    
+    // Create a proper authenticated download
+    const response = await fetch(url, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+    
+    if (response.ok) {
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = downloadUrl;
+      a.download = `resume_comparison_${sessionId}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(downloadUrl);
+    } else {
+      throw new Error('Failed to download PDF');
+    }
+  }
+
+  // Resume Optimization
+  async optimizeResume(resumeId: string, jobDescription: string): Promise<{
+    score: number;
+    suggestions: Array<{
+      category: string;
+      priority: 'HIGH' | 'MEDIUM' | 'LOW';
+      suggestion: string;
+      impact: number;
+    }>;
+    optimized_resume: {
+      content: string;
+      download_url?: string;
+    };
+  }> {
+    return this.request(`/resumes/${resumeId}/optimize`, {
+      method: 'POST',
+      body: JSON.stringify({
+        job_description: jobDescription
+      }),
+    }, true);
   }
 }
 

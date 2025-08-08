@@ -31,13 +31,11 @@ export const useGlobalStore = create<GlobalState>((set, get) => ({
     }
 
     try {
-      const [user, userSummary] = await Promise.all([
-        apiClient.getCurrentUser(),
-        apiClient.getUserSummary(),
-      ]);
+      const userSummary = await apiClient.getUserSummary();
+      // The new API combines user info with summary
       set({ 
         isAuthenticated: true, 
-        user, 
+        user: null, // User data is now part of userSummary
         userSummary, 
         isLoading: false, 
         error: null 

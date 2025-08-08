@@ -21,8 +21,13 @@ export function ChooseInputsStep({ onNext }: ChooseInputsStepProps) {
 
   useEffect(() => {
     const fetchResumes = async () => {
-      const data = await apiClient.getResumes();
-      setResumes(data);
+      try {
+        const data = await apiClient.getResumes();
+        setResumes(data.resumes);
+      } catch (error) {
+        console.error('Failed to fetch resumes:', error);
+        setResumes([]);
+      }
     };
 
     if (comparisonType === 'default-vs-another') {

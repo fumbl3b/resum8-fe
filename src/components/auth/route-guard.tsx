@@ -4,9 +4,10 @@ import { useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useGlobalStore } from '@/stores/global-store';
 
-const PROTECTED_ROUTES = ['/resumes', '/compare'];
-const ONBOARDING_ROUTE = '/onboarding';
+const PROTECTED_ROUTES = ['/resumes', '/compare', '/dashboard', '/analyze', '/optimize'];
+const PUBLIC_ROUTES = ['/', '/login', '/signup', '/register'];
 const LOGIN_ROUTE = '/login';
+const DASHBOARD_ROUTE = '/dashboard';
 
 export function RouteGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -21,14 +22,23 @@ export function RouteGuard({ children }: { children: React.ReactNode }) {
     if (isLoading) return;
 
     const isProtectedRoute = PROTECTED_ROUTES.some(route => pathname.startsWith(route));
+    const isPublicRoute = PUBLIC_ROUTES.includes(pathname);
 
+    // Redirect unauthenticated users trying to access protected routes
     if (!isAuthenticated && isProtectedRoute) {
       router.push(LOGIN_ROUTE);
       return;
     }
 
-    if (isAuthenticated && !userSummary?.has_default_resume && pathname !== ONBOARDING_ROUTE) {
-      router.push(ONBOARDING_ROUTE);
+    // Redirect authenticated users from public routes to dashboard
+    if (isAuthenticated && isPublicRoute && pathname !== '/') {
+      router.push(DASHBOARD_ROUTE);
+      return;
+    }
+
+    // Redirect authenticated users from home to dashboard
+    if (isAuthenticated && pathname === '/') {
+      router.push(DASHBOARD_ROUTE);
       return;
     }
 

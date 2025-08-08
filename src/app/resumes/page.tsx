@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
 import { PlusCircle, Upload, MoreVertical, Trash2, Star } from 'lucide-react';
 import { apiClient } from '@/lib/api';
 import { ResumeDocument } from '@/lib/types';
@@ -24,7 +25,8 @@ export default function ResumeLibrary() {
     try {
       setIsLoading(true);
       const data = await apiClient.getResumes();
-      setResumes(data);
+      // New API returns array directly, not wrapped in { resumes: [] }
+      setResumes(Array.isArray(data) ? data : []);
     } catch (err) {
       setError('Failed to fetch resumes.');
     } finally {
@@ -82,9 +84,6 @@ export default function ResumeLibrary() {
     }
   };
 
-  import { Skeleton } from '@/components/ui/skeleton';
-
-// ... (imports)
 
   if (isLoading) {
     return (
@@ -179,7 +178,7 @@ export default function ResumeLibrary() {
                 </CardHeader>
                 <CardContent>
                   <p className="text-sm text-muted-foreground">
-                    {resume.parsed_at ? `Parsed successfully.` : `Parsing...`}
+                    {resume.is_parsed ? `Parsed successfully.` : `Parsing...`}
                   </p>
                 </CardContent>
               </Card>
