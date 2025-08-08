@@ -8,6 +8,7 @@ import { Stepper } from '@/components/comparison/Stepper';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Download } from 'lucide-react';
+import { DiffView } from '@/components/comparison/DiffView';
 
 export default function ComparisonSessionPage() {
   const params = useParams();
@@ -50,29 +51,21 @@ export default function ComparisonSessionPage() {
         <Stepper steps={steps} />
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        <Card>
-          <CardHeader>
-            <CardTitle>Original Resume</CardTitle>
-          </CardHeader>
-          <CardContent className="prose max-w-none">
-            <p>{session.previews?.base_text}</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Improved Resume</CardTitle>
-          </CardHeader>
-          <CardContent className="prose max-w-none">
-            {session.improved_text ? (
-              <p>{session.improved_text}</p>
-            ) : (
-              <p>Improvements will appear here when ready.</p>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+      <Card>
+        <CardHeader>
+          <CardTitle>Resume Comparison</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {session.previews?.base_text && session.improved_text ? (
+            <DiffView 
+              baseText={session.previews.base_text} 
+              improvedText={session.improved_text} 
+            />
+          ) : (
+            <p>Loading comparison...</p>
+          )}
+        </CardContent>
+      </Card>
 
       {session.status === 'DONE' && session.pdf_url && (
         <div className="mt-8 text-center">
