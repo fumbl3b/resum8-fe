@@ -7,24 +7,48 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/hooks/useAuth';
 import { ArrowLeft } from 'lucide-react';
 
 export default function Signup() {
   const router = useRouter();
+  const { register } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  const handleSignup = (e: React.FormEvent) => {
+  const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
+    
     if (password !== confirmPassword) {
-      alert('Passwords do not match');
+      setError('Passwords do not match');
       return;
     }
-    // Placeholder: Set session and redirect to dashboard
-    localStorage.setItem('resum8_user_session', 'active');
-    localStorage.setItem('resum8_user_data', JSON.stringify({ email, name: email.split('@')[0] }));
-    router.push('/upload');
+
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters');
+      return;
+    }
+
+    setIsLoading(true);
+    
+    try {
+      const success = await register(email, password);
+      if (success) {
+        // Registration successful, redirect to login
+        router.push('/login?message=Registration successful. Please log in.');
+      } else {
+        setError('Registration failed. Please try again.');
+      }
+    } catch (error) {
+      setError('Registration failed. Please try again.');
+      console.error('Registration error:', error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -83,8 +107,13 @@ export default function Signup() {
                   required
                 />
               </div>
-              <Button type="submit" className="w-full">
-                Create Account
+              {error && (
+                <div className="text-sm text-destructive text-center">
+                  {error}
+                </div>
+              )}
+              <Button type="submit" className="w-full" disabled={isLoading}>
+                {isLoading ? 'Creating Account...' : 'Create Account'}
               </Button>
             </form>
             <div className="mt-4 text-center text-sm text-muted-foreground">

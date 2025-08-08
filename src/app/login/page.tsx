@@ -7,19 +7,34 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/hooks/useAuth';
 import { ArrowLeft } from 'lucide-react';
 
 export default function Login() {
   const router = useRouter();
+  const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Placeholder: Set session and redirect to dashboard
-    localStorage.setItem('resum8_user_session', 'active');
-    localStorage.setItem('resum8_user_data', JSON.stringify({ email, name: email.split('@')[0] }));
-    router.push('/upload');
+    setIsLoading(true);
+    
+    try {
+      const success = await login(email, password);
+      if (success) {
+        router.push('/upload');
+      } else {
+        setError('Invalid email or password');
+      }
+    } catch (error) {
+      setError('Login failed. Please try again.');
+      console.error('Login error:', error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -67,12 +82,17 @@ export default function Login() {
                   required
                 />
               </div>
-              <Button type="submit" className="w-full">
-                Sign In
+              {error && (
+                <div className="text-sm text-destructive text-center">
+                  {error}
+                </div>
+              )}
+              <Button type="submit" className="w-full" disabled={isLoading}>
+                {isLoading ? 'Signing In...' : 'Sign In'}
               </Button>
             </form>
             <div className="mt-4 text-center text-sm text-muted-foreground">
-              Don't have an account?{' '}
+              Don&apos;t have an account?{' '}
               <Link href="/signup" className="text-primary hover:underline">
                 Sign up
               </Link>
