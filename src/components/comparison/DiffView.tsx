@@ -29,24 +29,36 @@ export function DiffView({ diffJson, explanations }: DiffViewProps) {
   }, [explanations, selectedCategories]);
 
   const renderTokens = (tokens: DiffToken[], view: 'base' | 'improved') => {
-    // This is a simplified rendering logic. A more robust implementation
-    // would handle nested tokens and more complex diff structures.
     return tokens.map((token, index) => {
-      const explanation = filteredExplanations.find(e => e.range[0] >= token.range[0] && e.range[1] <= token.range[1]);
+      // Filter tokens based on view mode
+      if (view === 'base' && token.op === 'add') return null;
+      if (view === 'improved' && token.op === 'del') return null;
+
+      // Filter tokens based on selected categories
+      const relevantExplanations = filteredExplanations.filter(e => 
+        (token.range[0] < e.range[1] && token.range[1] > e.range[0])
+      );
+
       const style = {
         backgroundColor: token.op === 'add' ? '#ddf4ff' : token.op === 'del' ? '#ffebe9' : 'transparent',
         textDecoration: token.op === 'del' ? 'line-through' : 'none',
       };
 
-      if (explanation) {
+      if (relevantExplanations.length > 0) {
         return (
           <Popover key={index}>
             <PopoverTrigger asChild>
-              <span style={style} className="cursor-pointer">{token.value}</span>
+              <span style={style} className="cursor-pointer">
+                {token.value}
+              </span>
             </PopoverTrigger>
-            <PopoverContent>
-              <p className="font-bold">{explanation.category}</p>
-              <p>{explanation.note}</p>
+            <PopoverContent className="w-80">
+              {relevantExplanations.map((exp, expIndex) => (
+                <div key={expIndex} className="mb-2 last:mb-0">
+                  <p className="font-bold text-sm">{exp.category}</p>
+                  <p className="text-xs text-muted-foreground">{exp.note}</p>
+                </div>
+              ))}
             </PopoverContent>
           </Popover>
         );
@@ -55,6 +67,25 @@ export function DiffView({ diffJson, explanations }: DiffViewProps) {
       return <span key={index} style={style}>{token.value}</span>;
     });
   };
+
+  const renderUnifiedView = () => (
+    <div className="prose max-w-none font-mono text-sm whitespace-pre-wrap">
+      {renderTokens(diffJson, 'improved')}
+    </div>
+  );
+
+  const renderSplitView = () => (
+    <div className="grid grid-cols-2 gap-4 font-mono text-sm whitespace-pre-wrap">
+      <div>
+        <h4 className="font-bold mb-2">Original</h4>
+        {renderTokens(diffJson, 'base')}
+      </div>
+      <div>
+        <h4 className="font-bold mb-2">Improved</h4>
+        {renderTokens(diffJson, 'improved')}
+      </div>
+    </div>
+  );
 
   return (
     <div>
@@ -86,7 +117,7 @@ export function DiffView({ diffJson, explanations }: DiffViewProps) {
           </ToggleGroupItem>
         </ToggleGroup>
       </div>
-      {/* Rendering logic needs to be updated to handle the diffJson structure */}
+      {viewMode === 'unified' ? renderUnifiedView() : renderSplitView()}
     </div>
   );
 }
