@@ -6,8 +6,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiClient } from '@/lib/api';
 import { 
   ArrowLeft, 
   FolderOpen,
@@ -24,18 +22,18 @@ import {
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 
-interface LibraryResume {
-  id: number;
+interface Resume {
+  id: string;
   title: string;
-  is_default: boolean;
-  optimizations: Array<{
-    job_title: string;
-    session_id: number;
-    created_at: string;
-    status: string;
-  }>;
-  created_at: string;
-  updated_at?: string;
+  createdAt: Date;
+  updatedAt: Date;
+  targetRole?: string;
+  company?: string;
+  status: 'draft' | 'optimized' | 'generated';
+  optimizationScore?: number;
+  tags: string[];
+  previewText: string;
+  fileSize: string;
 }
 
 export default function ResumeLibraryPage() {

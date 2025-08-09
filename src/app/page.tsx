@@ -8,7 +8,6 @@ import {
   ArrowRight, 
   Zap, 
   Target, 
-  Download, 
   CheckCircle, 
   TrendingUp,
   Users,
@@ -199,7 +198,7 @@ export default function Home() {
               <span className="ml-2 text-sm font-medium">4.9/5 from 2,000+ users</span>
             </div>
             <blockquote className="text-lg italic text-center mb-4">
-              "Resum8 helped me land 3 interviews in just one week. The AI suggestions were spot-on and the LaTeX output looked incredibly professional."
+              &quot;Resum8 helped me land 3 interviews in just one week. The AI suggestions were spot-on and the LaTeX output looked incredibly professional.&quot;
             </blockquote>
             <cite className="text-sm text-muted-foreground">
               — Sarah Chen, Software Engineer at Google
@@ -271,7 +270,7 @@ export default function Home() {
             <CardContent className="p-8 text-center">
               <h3 className="text-3xl font-bold mb-4">Ready to Transform Your Career?</h3>
               <p className="text-lg mb-6 opacity-90">
-                Join thousands of professionals who've boosted their interview success with Resum8
+                Join thousands of professionals who&apos;ve boosted their interview success with Resum8
               </p>
               <Button 
                 size="lg" 

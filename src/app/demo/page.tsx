@@ -42,7 +42,7 @@ export default function Demo() {
               Job Analysis Results
             </CardTitle>
             <CardDescription>
-              Key requirements extracted from: "Senior Software Engineer - React/Node.js"
+              Key requirements extracted from: &quot;Senior Software Engineer - React/Node.js&quot;
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -75,7 +75,7 @@ export default function Demo() {
                 <CheckCircle className="h-5 w-5 text-green-500 mt-1 flex-shrink-0" />
                 <div className="flex-1">
                   <h4 className="font-semibold text-green-700">High Impact</h4>
-                  <p className="text-sm mb-2">Add "TypeScript" to your technical skills section</p>
+                  <p className="text-sm mb-2">Add &quot;TypeScript&quot; to your technical skills section</p>
                   <p className="text-xs text-muted-foreground">
                     This job specifically requires TypeScript experience, and adding it will significantly improve your match score.
                   </p>
@@ -92,7 +92,7 @@ export default function Demo() {
                   <h4 className="font-semibold text-yellow-700">Medium Impact</h4>
                   <p className="text-sm mb-2">Highlight your API development experience</p>
                   <p className="text-xs text-muted-foreground">
-                    Consider adding specific examples of RESTful APIs or GraphQL implementations you've worked on.
+                    Consider adding specific examples of RESTful APIs or GraphQL implementations you&apos;ve worked on.
                   </p>
                 </div>
               </div>
@@ -107,7 +107,7 @@ export default function Demo() {
                   <h4 className="font-semibold text-blue-700">Enhancement</h4>
                   <p className="text-sm mb-2">Quantify your React project achievements</p>
                   <p className="text-xs text-muted-foreground">
-                    Add metrics like "Improved application performance by 40%" or "Built React components used by 10,000+ users."
+                    Add metrics like &quot;Improved application performance by 40%&quot; or &quot;Built React components used by 10,000+ users.&quot;
                   </p>
                 </div>
               </div>

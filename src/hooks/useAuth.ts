@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { apiClient } from '@/lib/api';
 
 interface User {
@@ -28,11 +28,13 @@ export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
-  useEffect(() => {
-    checkAuthSession();
+  const logout = useCallback(() => {
+    apiClient.logout(); // This clears tokens in the API client
+    setUser(null);
+    setIsAuthenticated(false);
   }, []);
 
-  const checkAuthSession = async () => {
+  const checkAuthSession = useCallback(async () => {
     const accessToken = localStorage.getItem('access_token');
     
     if (accessToken) {
@@ -65,18 +67,23 @@ export function useAuth() {
     }
     
     setIsLoading(false);
-  };
+  }, [logout]);
+
+  useEffect(() => {
+    checkAuthSession();
+  }, [checkAuthSession]);
 
   const login = async (email: string, password: string): Promise<void> => {
     try {
       const response = await apiClient.login({ email, password });
-      
-      // Set user data
-      const userData = { 
-        ...response.user,
+      // Ensure required fields from /auth/me shape exist
+      const userData: User = {
+        id: response.user.id,
         email: response.user.email,
+        onboarding_stage: response.user.onboarding_stage,
+        has_default_resume: response.user.has_default_resume,
+        created_at: new Date().toISOString(),
       };
-      
       setUser(userData);
       setIsAuthenticated(true);
       
@@ -106,12 +113,6 @@ export function useAuth() {
     
     localStorage.setItem('resum8_user_data', JSON.stringify(updatedUser));
     setUser(updatedUser);
-  };
-
-  const logout = () => {
-    apiClient.logout(); // This clears tokens in the API client
-    setUser(null);
-    setIsAuthenticated(false);
   };
 
   return {

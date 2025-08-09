@@ -77,7 +77,7 @@ export default function UploadPage() {
             <CardHeader>
               <CardTitle>Ready to Analyze?</CardTitle>
               <CardDescription>
-                Once you've uploaded your resume and job description, we can analyze the job requirements.
+                Once you&apos;ve uploaded your resume and job description, we can analyze the job requirements.
               </CardDescription>
             </CardHeader>
             <CardContent>

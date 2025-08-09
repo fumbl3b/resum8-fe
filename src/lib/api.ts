@@ -1,4 +1,4 @@
-import { APIError } from './types';
+import type { APIError, JobAnalysisRequest, JobAnalysisResponse } from './types';
 
 const API_BASE_URL = process.env.NODE_ENV === 'production' 
   ? 'https://your-app.render.com' 
@@ -104,19 +104,7 @@ interface ResumeAnalysisResponse {
   completed_at?: string;
 }
 
-interface JobAnalysisRequest {
-  job_description: string;
-}
-
-interface JobAnalysisResponse {
-  keywords: string[];
-  required_skills: string[];
-  preferred_skills: string[];
-  benefits: string[];
-  company_culture: string[];
-  difficulty_level: string;
-  match_score?: number;
-}
+// Using JobAnalysisRequest and JobAnalysisResponse from ./types
 
 // Comparison interfaces
 interface ComparisonStartRequest {
@@ -256,19 +244,31 @@ class APIClient {
     options: RequestInit = {}
   ): Promise<T> {
     const url = `${API_BASE_URL}${endpoint}`;
-    
-    const headers: HeadersInit = {
-      'Content-Type': 'application/json',
-      ...options.headers,
-    };
 
-    // Add auth token if available
-    if (this.accessToken && !options.headers?.['Authorization']) {
-      headers['Authorization'] = `Bearer ${this.accessToken}`;
+    // Normalize headers to a plain record for safe mutation
+    const normalizedHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (options.headers) {
+      const incoming = options.headers as HeadersInit;
+      if (incoming instanceof Headers) {
+        incoming.forEach((value, key) => {
+          normalizedHeaders[key] = value;
+        });
+      } else if (Array.isArray(incoming)) {
+        for (const [key, value] of incoming) {
+          normalizedHeaders[key] = value;
+        }
+      } else {
+        Object.assign(normalizedHeaders, incoming as Record<string, string>);
+      }
+    }
+
+    // Add auth token if available and not already present
+    if (this.accessToken && !('Authorization' in normalizedHeaders)) {
+      normalizedHeaders['Authorization'] = `Bearer ${this.accessToken}`;
     }
 
     const response = await fetch(url, {
-      headers,
+      headers: normalizedHeaders,
       ...options,
     });
 
@@ -277,10 +277,10 @@ class APIClient {
       try {
         await this.refreshAccessToken();
         // Retry the request with new token
-        headers['Authorization'] = `Bearer ${this.accessToken}`;
+        normalizedHeaders['Authorization'] = `Bearer ${this.accessToken}`;
         const retryResponse = await fetch(url, {
           ...options,
-          headers,
+          headers: normalizedHeaders,
         });
         
         if (!retryResponse.ok) {

@@ -37,68 +37,70 @@ export default function AnalyzePage() {
   });
 
   const optimizeMutation = useMutation({
-    mutationFn: () => apiClient.suggestImprovements({
-      resume_text: resumeText,
-      job_description: jobDescription
+    mutationFn: () => apiClient.startComparison({
+      base_resume_id: useAppStore.getState().resumeId!,
+      job_description: jobDescription,
+      job_title: 'Job Title' // This is a placeholder, you might want to get this from the user
     }),
     onSuccess: (data) => {
-      // Parse the raw suggestions into structured format
-      const rawSuggestions = typeof data.suggestions === 'string' ? data.suggestions : '';
-      const structuredSuggestions = parseRawSuggestions(rawSuggestions);
-      setOptimizationResults({
-        suggestions: structuredSuggestions,
-        rawSuggestions: rawSuggestions
-      });
+      // After starting the comparison, poll for the results
+      pollForComparisonResults(data.session_id);
     },
     onError: (error) => {
       console.error('Failed to get optimization suggestions:', error);
     },
   });
 
-  // Parse raw suggestions into structured format
-  const parseRawSuggestions = (rawText: string) => {
-    const suggestions = [];
-    const lines = rawText.split('\n').filter(line => line.trim());
-    
-    let currentId = 1;
-    for (const line of lines) {
-      if (line.startsWith('•') || line.startsWith('-') || line.startsWith('*')) {
-        const cleanLine = line.replace(/^[•\-*]\s*/, '').trim();
-        if (cleanLine.length > 10) { // Only include substantial suggestions
-          suggestions.push({
-            id: `suggestion-${currentId++}`,
-            title: cleanLine.substring(0, 50) + (cleanLine.length > 50 ? '...' : ''),
-            description: cleanLine,
-            impact: determineImpact(cleanLine),
-            category: determineCategory(cleanLine)
-          });
+  const pollForComparisonResults = async (sessionId: number) => {
+    let attempts = 0;
+    const maxAttempts = 30; // 30 attempts with 2-second intervals = 1 minute max
+
+    while (attempts < maxAttempts) {
+      try {
+        const result = await apiClient.getComparisonSession(sessionId);
+
+        if (result.status === 'DONE') {
+          if (result.improvements) {
+            const suggestions = [
+              ...result.improvements.high_impact,
+              ...result.improvements.medium_impact,
+              ...result.improvements.low_impact,
+            ].map((suggestion, index) => ({
+              id: suggestion.id || `suggestion-${index}`,
+              title: suggestion.description.substring(0, 50) + (suggestion.description.length > 50 ? '...' : ''),
+              description: suggestion.description,
+              impact: (suggestion.impact_score > 0.8 ? 'high' : suggestion.impact_score > 0.5 ? 'medium' : 'low') as "high" | "medium" | "low",
+              category: suggestion.category as "keywords" | "formatting" | "content" | "skills",
+              originalText: suggestion.original_text,
+              suggestedText: suggestion.improved_text,
+            }));
+
+            setOptimizationResults({
+              suggestions: suggestions,
+              rawSuggestions: JSON.stringify(suggestions, null, 2),
+            });
+          }
+          break;
+        } else if (result.status === 'ERROR') {
+          throw new Error('Comparison failed on server');
         }
+
+        // Wait 2 seconds before next poll
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        attempts++;
+      } catch (pollError) {
+        console.error('Error polling comparison results:', pollError);
+        throw pollError;
       }
     }
-    
-    return suggestions;
-  };
 
-  const determineImpact = (text: string): 'high' | 'medium' | 'low' => {
-    const highImpactWords = ['keyword', 'ats', 'requirement', 'critical', 'essential'];
-    const mediumImpactWords = ['improve', 'enhance', 'add', 'include'];
-    
-    const lowerText = text.toLowerCase();
-    if (highImpactWords.some(word => lowerText.includes(word))) return 'high';
-    if (mediumImpactWords.some(word => lowerText.includes(word))) return 'medium';
-    return 'low';
-  };
-
-  const determineCategory = (text: string): 'keywords' | 'formatting' | 'content' | 'skills' => {
-    const lowerText = text.toLowerCase();
-    if (lowerText.includes('keyword') || lowerText.includes('ats')) return 'keywords';
-    if (lowerText.includes('format') || lowerText.includes('structure')) return 'formatting';
-    if (lowerText.includes('skill') || lowerText.includes('technology')) return 'skills';
-    return 'content';
+    if (attempts >= maxAttempts) {
+      throw new Error('Comparison timed out. Please try again.');
+    }
   };
 
   const handleSelectAll = () => {
-    if (optimizationResults?.suggestions) {
+    if (optimizationResults?.suggestions && Array.isArray(optimizationResults.suggestions)) {
       const allSuggestionIds = optimizationResults.suggestions.map(s => s.id);
       setSelectedSuggestions(allSuggestionIds);
     }
@@ -204,7 +206,7 @@ export default function AnalyzePage() {
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <p className="text-sm">{jobAnalysis.keywords}</p>
+                    <p className="text-sm">{jobAnalysis.keywords.join(', ')}</p>
                   </CardContent>
                 </Card>
                 
@@ -216,7 +218,7 @@ export default function AnalyzePage() {
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <p className="text-sm text-muted-foreground">{jobAnalysis.benefits}</p>
+                    <p className="text-sm text-muted-foreground">{jobAnalysis.benefits.join(', ')}</p>
                   </CardContent>
                 </Card>
               </div>
@@ -253,7 +255,7 @@ export default function AnalyzePage() {
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-4">
-                      {optimizationResults.suggestions.map((suggestion) => (
+                      {Array.isArray(optimizationResults.suggestions) && optimizationResults.suggestions.map((suggestion) => (
                         <div key={suggestion.id} className="flex items-start space-x-3 p-4 border rounded-lg hover:bg-muted/50 transition-colors">
                           <input
                             type="checkbox"

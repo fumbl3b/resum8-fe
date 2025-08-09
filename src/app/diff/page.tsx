@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { DiffViewer } from '@/components/ui/diff-viewer';
@@ -12,7 +12,7 @@ import { ArrowLeft, ArrowRight, Loader2, FileText, GitCompare, Eye } from 'lucid
 import { useRouter, useSearchParams } from 'next/navigation';
 import { apiClient } from '@/lib/api';
 
-export default function DiffPage() {
+function DiffContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const sessionId = searchParams.get('sessionId');
@@ -330,5 +330,28 @@ export default function DiffPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function DiffPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-background pt-8 pb-8">
+        <div className="container mx-auto px-4">
+          <div className="max-w-6xl mx-auto">
+            <Card>
+              <CardContent className="flex items-center justify-center py-12">
+                <div className="text-center">
+                  <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+                  <p className="text-lg font-medium">Loading comparison...</p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </div>
+    }>
+      <DiffContent />
+    </Suspense>
   );
 }

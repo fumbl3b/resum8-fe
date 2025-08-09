@@ -23,6 +23,14 @@ import {
   Zap
 } from 'lucide-react';
 
+interface AnalysisResult {
+  overall_score: number;
+  ats_score: number;
+  strengths: Array<{ category: string; impact: string; description: string }>;
+  weaknesses: Array<{ category: string; impact: string; description: string; suggestion: string }>;
+  resume_text?: string;
+}
+
 interface AnalysisScore {
   category: string;
   score: number;
@@ -48,7 +56,6 @@ export default function AnalyzeResumePage() {
 
 
   const handleAnalyze = async () => {
-    const { resumeId } = useAppStore.getState();
     if (!resumeId) {
       setError('No resume uploaded. Please upload a resume first.');
       return;
@@ -76,13 +83,14 @@ export default function AnalyzeResumePage() {
             if (result.status === 'DONE') {
               if (result.results) {
                 // Convert API results to our UI format for compatibility
-                const convertedScores = convertAnalysisResults(result.results);
+                const convertedScores = convertAnalysisResults(result.results as AnalysisResult);
                 setAnalysisScores(convertedScores);
                 setAnalysisComplete(true);
                 
                 // Extract text if available in results
-                if (result.results.resume_text) {
-                  setResumeText(result.results.resume_text);
+                const { setResumeText } = useAppStore.getState();
+                if ((result.results as AnalysisResult).resume_text) {
+                  setResumeText((result.results as AnalysisResult).resume_text!);
                 }
               }
               break;
@@ -137,13 +145,7 @@ export default function AnalyzeResumePage() {
   };
 
   // Convert API analysis results to our UI format
-  const convertAnalysisResults = (results: {
-    overall_score: number;
-    ats_score: number;
-    strengths: Array<{ category: string; impact: string; description: string }>;
-    weaknesses: Array<{ category: string; impact: string; description: string; suggestion: string }>;
-    resume_text?: string;
-  }): AnalysisScore[] => {
+  const convertAnalysisResults = (results: AnalysisResult): AnalysisScore[] => {
     const scores: AnalysisScore[] = [];
     
     // Use overall and ATS scores from API

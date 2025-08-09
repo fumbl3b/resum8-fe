@@ -1,22 +1,39 @@
 'use client';
 
 import { useCallback, useState } from 'react';
-import { useDropzone } from 'react-dropzone';
+import { useDropzone, FileRejection } from 'react-dropzone';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Upload, FileText, X } from 'lucide-react';
 import { useAppStore } from '@/stores/app-store';
 import { useMutation } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
+import type { APIError } from '@/lib/types';
+
+interface UploadedResume {
+  id: number;
+  is_parsed: boolean;
+  size_bytes: number;
+}
+
+interface UploadResumeServerResponse {
+  id: number;
+  is_parsed: boolean;
+  size_bytes: number;
+}
 
 export function ResumeUploader() {
-  const { resumeFile, resumeText, setResumeFile, setResumeText, setResumeId } = useAppStore();
-  const [uploadedResume, setUploadedResume] = useState<any>(null);
+  const { resumeFile, setResumeFile, setResumeText, setResumeId } = useAppStore();
+  const [uploadedResume, setUploadedResume] = useState<UploadedResume | null>(null);
 
-  const uploadMutation = useMutation({
+  const uploadMutation = useMutation<UploadResumeServerResponse, APIError, File>({
     mutationFn: (file: File) => apiClient.uploadResume(file),
     onSuccess: (data) => {
-      setUploadedResume(data);
+      setUploadedResume({
+        id: data.id,
+        is_parsed: data.is_parsed,
+        size_bytes: data.size_bytes,
+      });
       setResumeId(data.id);
       // Note: We'll wait for the resume to be parsed to get the text
       // For now, we'll use a placeholder text extraction
@@ -31,7 +48,7 @@ export function ResumeUploader() {
     },
   });
 
-  const onDrop = useCallback((acceptedFiles: File[], fileRejections: any[]) => {
+  const onDrop = useCallback((acceptedFiles: File[], fileRejections: FileRejection[]) => {
     // Handle rejected files
     if (fileRejections.length > 0) {
       console.error('File rejected:', fileRejections[0]);

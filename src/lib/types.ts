@@ -4,8 +4,13 @@ export interface JobAnalysisRequest {
 }
 
 export interface JobAnalysisResponse {
-  keywords: string;
-  benefits: string;
+  keywords: string[];
+  required_skills: string[];
+  preferred_skills: string[];
+  benefits: string[];
+  company_culture: string[];
+  difficulty_level: string;
+  match_score: number | null;
 }
 
 // Resume Processing Types
@@ -53,7 +58,9 @@ export interface ApplyImprovementsRequest {
 }
 
 export interface ApplyImprovementsResponse {
-  improved_content: string; // The actual response field
+  improved_text: string;
+  changes_applied?: number;
+  processing_time?: string;
 }
 
 // LaTeX Generation Types (legacy - keeping for backward compatibility)

@@ -21,16 +21,36 @@ export default function GeneratePage() {
 
   const generateMutation = useMutation({
     mutationFn: () => {
-      // Use the new apply-improvements endpoint
-      const improvements = optimizationResults?.suggestions || 'No specific improvements provided';
-      
+      // Ensure suggestions are sent as a string per API spec
+      let suggestionsText: string = 'No specific improvements provided';
+      const suggestions = optimizationResults?.suggestions;
+      if (Array.isArray(suggestions)) {
+        suggestionsText = suggestions
+          .map((s) => {
+            const parts = [s.title || s.category, s.description]
+              .filter(Boolean)
+              .join(': ');
+            return `- ${parts}`;
+          })
+          .join('\n');
+      } else if (typeof suggestions === 'string' && suggestions.trim().length > 0) {
+        suggestionsText = suggestions;
+      }
+
       return apiClient.applyImprovements({
-        resume_text: resumeText,
-        improvements: improvements
+        document_text: resumeText,
+        suggestions: suggestionsText,
+        document_type: 'resume',
+        output_format: 'text',
       });
     },
     onSuccess: (data) => {
-      setLatexResult(data);
+      // Map the apply-improvements response to the legacy LaTeX result shape used by the UI
+      setLatexResult({
+        latex_code: data.improved_text,
+        compilation_status: 'success',
+        pdf_url: undefined,
+      });
     },
     onError: (error) => {
       console.error('Failed to generate LaTeX:', error);
@@ -120,8 +140,8 @@ export default function GeneratePage() {
                   <p className="text-lg font-medium text-destructive mb-2">
                     Generation Failed
                   </p>
-                  <p className="text-sm text-destructive/80 mb-4">
-                    We couldn't generate your resume. Please try again.
+                  <p className="text-sm text-muted-foreground">
+                    We couldn&apos;t generate your resume. Please try again.
                   </p>
                   <Button
                     onClick={() => generateMutation.mutate()}
@@ -221,7 +241,7 @@ export default function GeneratePage() {
 
                   <Card>
                     <CardHeader>
-                      <CardTitle>What's Next?</CardTitle>
+                      <CardTitle>What&apos;s Next?</CardTitle>
                       <CardDescription>
                         Your optimized resume is ready. Here are some suggestions for next steps.
                       </CardDescription>

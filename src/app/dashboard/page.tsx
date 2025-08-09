@@ -7,17 +7,14 @@ import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
 import { 
-  Upload, 
   FileText, 
   Target, 
   Download,
-  TrendingUp,
   Clock,
   CheckCircle,
   ArrowRight,
   Sparkles,
   BarChart3,
-  Settings,
   Briefcase,
   FolderOpen
 } from 'lucide-react';

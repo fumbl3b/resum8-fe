@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Check, X, ChevronDown, ChevronUp } from 'lucide-react';
@@ -14,11 +14,11 @@ interface SuggestionCardProps {
 
 export function SuggestionCard({ suggestion }: SuggestionCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
-  const { acceptedSuggestions, toggleSuggestion } = useAppStore();
-  const isAccepted = acceptedSuggestions.includes(suggestion.id);
+  const { selectedSuggestions, toggleSuggestion } = useAppStore();
+  const isAccepted = selectedSuggestions.includes(suggestion.id);
 
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
+  const getPriorityColor = (impact: string) => {
+    switch (impact) {
       case 'high': return 'bg-destructive/20 text-destructive';
       case 'medium': return 'bg-warning/20 text-warning';
       case 'low': return 'bg-success/20 text-success';
@@ -26,12 +26,12 @@ export function SuggestionCard({ suggestion }: SuggestionCardProps) {
     }
   };
 
-  const getTypeColor = (type: string) => {
-    switch (type) {
-      case 'addition': return 'bg-info/20 text-info';
-      case 'modification': return 'bg-primary/20 text-primary';
-      case 'removal': return 'bg-warning/20 text-warning';
-      case 'keyword': return 'bg-success/20 text-success';
+  const getCategoryColor = (category: string) => {
+    switch (category) {
+      case 'keywords': return 'bg-info/20 text-info';
+      case 'formatting': return 'bg-primary/20 text-primary';
+      case 'content': return 'bg-warning/20 text-warning';
+      case 'skills': return 'bg-success/20 text-success';
       default: return 'bg-muted text-muted-foreground';
     }
   };
@@ -44,27 +44,19 @@ export function SuggestionCard({ suggestion }: SuggestionCardProps) {
         <div className="flex items-start justify-between">
           <div className="flex-1">
             <div className="flex items-center gap-2 mb-2">
-              <Badge className={getPriorityColor(suggestion.priority)}>
-                {suggestion.priority} priority
+              <Badge className={getPriorityColor(suggestion.impact)}>
+                {suggestion.impact} impact
               </Badge>
-              <Badge className={getTypeColor(suggestion.type)}>
-                {suggestion.type}
-              </Badge>
-              <Badge variant="outline">
-                {suggestion.section}
+              <Badge className={getCategoryColor(suggestion.category)}>
+                {suggestion.category}
               </Badge>
             </div>
             <CardTitle className="text-lg">
-              {suggestion.type === 'addition' && 'Add Content'}
-              {suggestion.type === 'modification' && 'Modify Content'}
-              {suggestion.type === 'removal' && 'Remove Content'}
-              {suggestion.type === 'keyword' && 'Add Keywords'}
+              {suggestion.title}
             </CardTitle>
           </div>
           <div className="flex items-center gap-2">
-            <div className="text-sm text-muted-foreground">
-              {Math.round(suggestion.confidence * 100)}% confidence
-            </div>
+            {/* Optional metrics could go here */}
             <Button
               variant={isAccepted ? 'default' : 'outline'}
               size="sm"
@@ -87,18 +79,27 @@ export function SuggestionCard({ suggestion }: SuggestionCardProps) {
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
+          {suggestion.description && (
+            <div>
+              <h4 className="font-medium mb-2">Description</h4>
+              <div className="bg-muted p-3 rounded-lg">
+                <p className="text-sm">{suggestion.description}</p>
+              </div>
+            </div>
+          )}
+
           <div>
             <h4 className="font-medium mb-2">Suggested Content</h4>
             <div className="bg-muted p-3 rounded-lg">
-              <p className="text-sm">{suggestion.suggested_text}</p>
+              <p className="text-sm">{suggestion.suggestedText || '—'}</p>
             </div>
           </div>
 
-          {suggestion.current_text && (
+          {suggestion.originalText && (
             <div>
               <h4 className="font-medium mb-2">Current Content</h4>
               <div className="bg-warning/10 p-3 rounded-lg border-l-4 border-warning">
-                <p className="text-sm text-warning">{suggestion.current_text}</p>
+                <p className="text-sm text-warning">{suggestion.originalText}</p>
               </div>
             </div>
           )}
@@ -124,7 +125,7 @@ export function SuggestionCard({ suggestion }: SuggestionCardProps) {
           {isExpanded && (
             <div className="bg-info/10 p-3 rounded-lg border-l-4 border-info">
               <h4 className="font-medium mb-2 text-info">Why this suggestion?</h4>
-              <p className="text-sm text-info/80">{suggestion.reasoning}</p>
+              <p className="text-sm text-info/80">{suggestion.description || 'No additional reasoning provided.'}</p>
             </div>
           )}
         </div>
