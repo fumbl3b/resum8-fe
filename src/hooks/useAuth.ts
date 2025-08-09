@@ -5,6 +5,15 @@ import { useState, useEffect } from 'react';
 interface User {
   email: string;
   name?: string;
+  firstName?: string;
+  lastName?: string;
+  phone?: string;
+  jobTitle?: string;
+  company?: string;
+  linkedin?: string;
+  github?: string;
+  website?: string;
+  bio?: string;
 }
 
 export function useAuth() {
@@ -45,6 +54,15 @@ export function useAuth() {
     setIsAuthenticated(true);
   };
 
+  const updateProfile = (profileData: Partial<User>) => {
+    if (!user) return;
+    
+    const updatedUser = { ...user, ...profileData };
+    
+    localStorage.setItem('resum8_user_data', JSON.stringify(updatedUser));
+    setUser(updatedUser);
+  };
+
   const logout = () => {
     localStorage.removeItem('resum8_user_session');
     localStorage.removeItem('resum8_user_data');
@@ -59,5 +77,6 @@ export function useAuth() {
     isLoading,
     login,
     logout,
+    updateProfile,
   };
 }

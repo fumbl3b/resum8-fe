@@ -27,7 +27,7 @@ export default function Home() {
   useEffect(() => {
     const hasActiveSession = localStorage.getItem('resum8_user_session');
     if (hasActiveSession) {
-      router.push('/upload'); // Redirect to dashboard/main app
+      router.push('/dashboard'); // Redirect to dashboard/main app
     }
   }, [router]);
 
