@@ -8,23 +8,48 @@ import { Label } from '@/components/ui/label';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
 
 export default function Signup() {
   const router = useRouter();
+  const { register } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState(false);
 
-  const handleSignup = (e: React.FormEvent) => {
+  const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsLoading(true);
+    setError('');
+
     if (password !== confirmPassword) {
-      alert('Passwords do not match');
+      setError('Passwords do not match');
+      setIsLoading(false);
       return;
     }
-    // Placeholder: Set session and redirect to dashboard
-    localStorage.setItem('resum8_user_session', 'active');
-    localStorage.setItem('resum8_user_data', JSON.stringify({ email, name: email.split('@')[0] }));
-    router.push('/upload');
+
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters long');
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      await register(email, password);
+      setSuccess(true);
+      // Redirect to login after 2 seconds
+      setTimeout(() => {
+        router.push('/login');
+      }, 2000);
+    } catch (err) {
+      setError('Account creation failed. Please try again.');
+      console.error('Signup error:', err);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -83,8 +108,18 @@ export default function Signup() {
                   required
                 />
               </div>
-              <Button type="submit" className="w-full">
-                Create Account
+              {error && (
+                <div className="text-sm text-red-600 bg-red-50 p-3 rounded-md">
+                  {error}
+                </div>
+              )}
+              {success && (
+                <div className="text-sm text-green-600 bg-green-50 p-3 rounded-md">
+                  Account created successfully! Redirecting to login...
+                </div>
+              )}
+              <Button type="submit" className="w-full" disabled={isLoading || success}>
+                {isLoading ? 'Creating Account...' : success ? 'Account Created!' : 'Create Account'}
               </Button>
             </form>
             <div className="mt-4 text-center text-sm text-muted-foreground">

@@ -8,18 +8,30 @@ import { Label } from '@/components/ui/label';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
 
 export default function Login() {
   const router = useRouter();
+  const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Placeholder: Set session and redirect to dashboard
-    localStorage.setItem('resum8_user_session', 'active');
-    localStorage.setItem('resum8_user_data', JSON.stringify({ email, name: email.split('@')[0] }));
-    router.push('/upload');
+    setIsLoading(true);
+    setError('');
+
+    try {
+      await login(email, password);
+      router.push('/dashboard');
+    } catch (err) {
+      setError('Invalid email or password. Please try again.');
+      console.error('Login error:', err);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -67,15 +79,27 @@ export default function Login() {
                   required
                 />
               </div>
-              <Button type="submit" className="w-full">
-                Sign In
+              {error && (
+                <div className="text-sm text-red-600 bg-red-50 p-3 rounded-md">
+                  {error}
+                </div>
+              )}
+              <Button type="submit" className="w-full" disabled={isLoading}>
+                {isLoading ? 'Signing In...' : 'Sign In'}
               </Button>
             </form>
-            <div className="mt-4 text-center text-sm text-muted-foreground">
-              Don't have an account?{' '}
-              <Link href="/signup" className="text-primary hover:underline">
-                Sign up
-              </Link>
+            <div className="mt-4 space-y-2">
+              <div className="text-center">
+                <Link href="#" className="text-sm text-muted-foreground hover:text-primary hover:underline">
+                  Forgot your password?
+                </Link>
+              </div>
+              <div className="text-center text-sm text-muted-foreground">
+                Don&apos;t have an account?{' '}
+                <Link href="/signup" className="text-primary hover:underline">
+                  Sign up
+                </Link>
+              </div>
             </div>
           </CardContent>
         </Card>

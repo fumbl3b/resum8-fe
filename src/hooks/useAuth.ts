@@ -1,9 +1,16 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { apiClient } from '@/lib/api';
 
 interface User {
+  id: number;
   email: string;
+  onboarding_stage: string;
+  default_resume_id?: number;
+  has_default_resume: boolean;
+  created_at: string;
+  // Extended profile fields
   name?: string;
   firstName?: string;
   lastName?: string;
@@ -22,21 +29,37 @@ export function useAuth() {
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   useEffect(() => {
-    // Check for existing session on mount
     checkAuthSession();
   }, []);
 
-  const checkAuthSession = () => {
-    const session = localStorage.getItem('resum8_user_session');
-    const userData = localStorage.getItem('resum8_user_data');
+  const checkAuthSession = async () => {
+    const accessToken = localStorage.getItem('access_token');
     
-    if (session === 'active' && userData) {
+    if (accessToken) {
       try {
-        const parsedUser = JSON.parse(userData);
-        setUser(parsedUser);
+        // Verify token by fetching user info
+        const userInfo = await apiClient.getCurrentUser();
+        
+        // Merge with existing profile data if available
+        const existingProfile = localStorage.getItem('resum8_user_data');
+        let profileData = {};
+        if (existingProfile) {
+          try {
+            profileData = JSON.parse(existingProfile);
+          } catch {
+            // Invalid profile data, ignore
+          }
+        }
+
+        const userData = { ...userInfo, ...profileData };
+        setUser(userData);
         setIsAuthenticated(true);
-      } catch (error) {
-        // Invalid user data, clear session
+        
+        // Update stored user data
+        localStorage.setItem('resum8_user_data', JSON.stringify(userData));
+        localStorage.setItem('resum8_user_session', 'active');
+      } catch {
+        // Token is invalid, clear auth state
         logout();
       }
     }
@@ -44,14 +67,36 @@ export function useAuth() {
     setIsLoading(false);
   };
 
-  const login = (email: string, name?: string) => {
-    const userData = { email, name };
-    
-    localStorage.setItem('resum8_user_session', 'active');
-    localStorage.setItem('resum8_user_data', JSON.stringify(userData));
-    
-    setUser(userData);
-    setIsAuthenticated(true);
+  const login = async (email: string, password: string): Promise<void> => {
+    try {
+      const response = await apiClient.login({ email, password });
+      
+      // Set user data
+      const userData = { 
+        ...response.user,
+        email: response.user.email,
+      };
+      
+      setUser(userData);
+      setIsAuthenticated(true);
+      
+      // Store in localStorage for profile extensions
+      localStorage.setItem('resum8_user_session', 'active');
+      localStorage.setItem('resum8_user_data', JSON.stringify(userData));
+    } catch (error) {
+      console.error('Login failed:', error);
+      throw error;
+    }
+  };
+
+  const register = async (email: string, password: string): Promise<void> => {
+    try {
+      await apiClient.register({ email, password });
+      // Note: Registration doesn't auto-login, user needs to login after
+    } catch (error) {
+      console.error('Registration failed:', error);
+      throw error;
+    }
   };
 
   const updateProfile = (profileData: Partial<User>) => {
@@ -64,9 +109,7 @@ export function useAuth() {
   };
 
   const logout = () => {
-    localStorage.removeItem('resum8_user_session');
-    localStorage.removeItem('resum8_user_data');
-    
+    apiClient.logout(); // This clears tokens in the API client
     setUser(null);
     setIsAuthenticated(false);
   };
@@ -76,6 +119,7 @@ export function useAuth() {
     user,
     isLoading,
     login,
+    register,
     logout,
     updateProfile,
   };

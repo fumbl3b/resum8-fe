@@ -9,8 +9,9 @@ import {
 interface AppStore extends AppState {
   setCurrentStep: (step: AppState['currentStep']) => void;
   setJobDescription: (description: string) => void;
-  setResumeFile: (file: File) => void;
+  setResumeFile: (file: File | undefined) => void;
   setResumeText: (text: string) => void;
+  setResumeId: (id: number | null) => void;
   setJobAnalysis: (analysis: JobAnalysisResponse) => void;
   setOptimizationResults: (results: ResumeOptimizationResponse) => void;
   toggleSuggestion: (suggestionId: string) => void;
@@ -23,6 +24,7 @@ const initialState: AppState = {
   currentStep: 'upload',
   jobDescription: '',
   resumeText: '',
+  resumeId: null,
   selectedSuggestions: [],
 };
 
@@ -36,6 +38,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
   setResumeFile: (resumeFile) => set({ resumeFile }),
   
   setResumeText: (resumeText) => set({ resumeText }),
+  
+  setResumeId: (resumeId) => set({ resumeId }),
   
   setJobAnalysis: (jobAnalysis) => set({ jobAnalysis }),
   

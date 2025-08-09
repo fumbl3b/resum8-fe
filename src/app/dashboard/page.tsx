@@ -17,7 +17,9 @@ import {
   ArrowRight,
   Sparkles,
   BarChart3,
-  Settings
+  Settings,
+  Briefcase,
+  FolderOpen
 } from 'lucide-react';
 
 export default function DashboardPage() {
@@ -47,27 +49,19 @@ export default function DashboardPage() {
 
   const quickActions = [
     {
-      title: 'Upload Resume',
-      description: 'Start by uploading your current resume',
-      icon: Upload,
-      href: '/upload',
+      title: 'Analyze Resume',
+      description: 'Upload and analyze your resume for strengths and weaknesses',
+      icon: FileText,
+      href: '/analyze-resume',
       color: 'bg-blue-500',
       completed: false
     },
     {
-      title: 'Analyze Job',
-      description: 'Get AI-powered job requirement analysis',
-      icon: Target,
-      href: '/analyze',
+      title: 'Job Application Flow', 
+      description: 'Optimize your resume for a specific job posting',
+      icon: Briefcase,
+      href: '/job-application',
       color: 'bg-purple-500',
-      completed: false
-    },
-    {
-      title: 'Optimize Resume',
-      description: 'Apply AI suggestions to improve your resume',
-      icon: TrendingUp,
-      href: '/optimize',
-      color: 'bg-green-500',
       completed: false
     },
     {
@@ -75,15 +69,15 @@ export default function DashboardPage() {
       description: 'Create professional LaTeX formatted resume',
       icon: Download,
       href: '/generate',
-      color: 'bg-orange-500',
+      color: 'bg-green-500',
       completed: false
     },
     {
-      title: 'Edit Profile',
-      description: 'Update your personal and professional information',
-      icon: Settings,
-      href: '/profile',
-      color: 'bg-gray-500',
+      title: 'Resume Library',
+      description: 'View and manage all your generated resumes',
+      icon: FolderOpen,
+      href: '/resume-library',
+      color: 'bg-orange-500',
       completed: false
     }
   ];

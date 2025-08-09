@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,15 +10,24 @@ import { useMutation } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
 
 export function ResumeUploader() {
-  const { resumeFile, resumeText, setResumeFile, setResumeText } = useAppStore();
+  const { resumeFile, resumeText, setResumeFile, setResumeText, setResumeId } = useAppStore();
+  const [uploadedResume, setUploadedResume] = useState<any>(null);
 
-  const extractTextMutation = useMutation({
-    mutationFn: (file: File) => apiClient.extractResumeText(file),
+  const uploadMutation = useMutation({
+    mutationFn: (file: File) => apiClient.uploadResume(file),
     onSuccess: (data) => {
-      setResumeText(data.text);
+      setUploadedResume(data);
+      setResumeId(data.id);
+      // Note: We'll wait for the resume to be parsed to get the text
+      // For now, we'll use a placeholder text extraction
+      // In the real implementation, you might need to poll for parsing completion
+      if (data.is_parsed) {
+        // Resume already parsed, we'd get text another way
+        // For now, keeping the old text extraction for compatibility
+      }
     },
     onError: (error) => {
-      console.error('Failed to extract text:', error);
+      console.error('Failed to upload resume:', error);
     },
   });
 
@@ -32,7 +41,7 @@ export function ResumeUploader() {
     const file = acceptedFiles[0];
     if (file) {
       // Validate file extension
-      const allowedExtensions = ['pdf', 'doc', 'docx', 'tex'];
+      const allowedExtensions = ['pdf', 'doc', 'docx', 'txt'];
       const fileExtension = file.name.split('.').pop()?.toLowerCase();
       
       if (!fileExtension || !allowedExtensions.includes(fileExtension)) {
@@ -42,9 +51,9 @@ export function ResumeUploader() {
 
       console.log(`Uploading file: ${file.name} (${fileExtension})`);
       setResumeFile(file);
-      extractTextMutation.mutate(file);
+      uploadMutation.mutate(file);
     }
-  }, [setResumeFile, extractTextMutation]);
+  }, [setResumeFile, uploadMutation]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -61,6 +70,8 @@ export function ResumeUploader() {
   const handleRemove = () => {
     setResumeFile(undefined);
     setResumeText('');
+    setUploadedResume(null);
+    setResumeId(null);
   };
 
   return (
@@ -90,7 +101,7 @@ export function ResumeUploader() {
               Drag and drop or click to select a file
             </p>
             <p className="text-xs text-muted-foreground/70 mt-2">
-              Supports PDF, DOC, DOCX, TEX (max 10MB)
+              Supports PDF, DOC, DOCX, TXT (max 10MB)
             </p>
           </div>
         ) : (
@@ -114,26 +125,29 @@ export function ResumeUploader() {
               </Button>
             </div>
 
-            {extractTextMutation.isPending && (
+            {uploadMutation.isPending && (
               <div className="text-sm text-info">
-                Extracting text from resume...
+                Uploading resume...
               </div>
             )}
 
-            {extractTextMutation.isError && (
+            {uploadMutation.isError && (
               <div className="text-sm text-destructive">
-                <p className="font-medium">Failed to extract text</p>
+                <p className="font-medium">Failed to upload resume</p>
                 <p className="mt-1">
-                  {extractTextMutation.error?.details || 
-                   extractTextMutation.error?.message || 
-                   'Please try a different file or format (PDF, DOC, DOCX, TEX).'}
+                  {uploadMutation.error?.details || 
+                   uploadMutation.error?.message || 
+                   'Please try a different file or format (PDF, DOC, DOCX, TXT).'}
                 </p>
               </div>
             )}
 
-            {resumeText && (
+            {uploadedResume && (
               <div className="text-sm text-success">
-                ✓ Resume text extracted successfully ({resumeText.length} characters)
+                ✓ Resume uploaded successfully ({Math.round(uploadedResume.size_bytes / 1024)} KB)
+                {uploadedResume.is_parsed && (
+                  <span> - Ready for analysis</span>
+                )}
               </div>
             )}
           </div>

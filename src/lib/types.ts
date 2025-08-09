@@ -74,6 +74,7 @@ export interface AppState {
   jobDescription: string;
   resumeFile?: File;
   resumeText: string;
+  resumeId: number | null;
   jobAnalysis?: JobAnalysisResponse;
   optimizationResults?: ResumeOptimizationResponse;
   selectedSuggestions: string[]; // Array of suggestion IDs
