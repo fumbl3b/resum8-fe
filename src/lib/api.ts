@@ -1,8 +1,6 @@
 import type { APIError, JobAnalysisRequest, JobAnalysisResponse } from './types';
 
-const API_BASE_URL = process.env.NODE_ENV === 'production' 
-  ? 'https://resume-bknd.onrender.com' 
-  : 'http://localhost:5000';
+const API_BASE_URL = '/api';
 
 // Auth interfaces
 interface LoginRequest {
