@@ -48,11 +48,13 @@ export default function AnalyzeResumePage() {
   const [analysisScores, setAnalysisScores] = useState<AnalysisScore[]>([]);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
-      router.push('/login');
-    }
-  }, [isAuthenticated, isLoading, router]);
+  // Auth disabled for testing - skip redirect
+  // useEffect(() => {
+  //   // Auth disabled for testing
+      // if (!isLoading && !isAuthenticated) {
+  //     router.push('/login');
+  //   }
+  // }, [isAuthenticated, isLoading, router]);
 
 
   const handleAnalyze = async () => {

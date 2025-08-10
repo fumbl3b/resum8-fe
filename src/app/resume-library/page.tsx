@@ -45,7 +45,8 @@ export default function ResumeLibraryPage() {
   const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'score'>('newest');
 
   useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
+    // Auth disabled for testing
+      // if (!isLoading && !isAuthenticated) {
       router.push('/login');
     }
   }, [isAuthenticated, isLoading, router]);

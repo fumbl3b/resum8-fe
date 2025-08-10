@@ -260,38 +260,38 @@ class APIClient {
       }
     }
 
-    // Add auth token if available and not already present
-    if (this.accessToken && !('Authorization' in normalizedHeaders)) {
-      normalizedHeaders['Authorization'] = `Bearer ${this.accessToken}`;
-    }
+    // Auth disabled for testing - skip token headers
+    // if (this.accessToken && !('Authorization' in normalizedHeaders)) {
+    //   normalizedHeaders['Authorization'] = `Bearer ${this.accessToken}`;
+    // }
 
     const response = await fetch(url, {
       headers: normalizedHeaders,
       ...options,
     });
 
-    // Handle token refresh on 401
-    if (response.status === 401 && this.refreshToken && endpoint !== '/auth/refresh') {
-      try {
-        await this.refreshAccessToken();
-        // Retry the request with new token
-        normalizedHeaders['Authorization'] = `Bearer ${this.accessToken}`;
-        const retryResponse = await fetch(url, {
-          ...options,
-          headers: normalizedHeaders,
-        });
+    // Auth disabled for testing - skip token refresh logic
+    // if (response.status === 401 && this.refreshToken && endpoint !== '/auth/refresh') {
+    //   try {
+    //     await this.refreshAccessToken();
+    //     // Retry the request with new token
+    //     normalizedHeaders['Authorization'] = `Bearer ${this.accessToken}`;
+    //     const retryResponse = await fetch(url, {
+    //       ...options,
+    //       headers: normalizedHeaders,
+    //     });
         
-        if (!retryResponse.ok) {
-          throw new Error('Request failed after token refresh');
-        }
+    //     if (!retryResponse.ok) {
+    //       throw new Error('Request failed after token refresh');
+    //     }
         
-        return retryResponse.json();
-      } catch {
-        // Refresh failed, clear tokens and redirect to login
-        this.clearTokens();
-        throw new Error('Authentication failed');
-      }
-    }
+    //     return retryResponse.json();
+    //   } catch {
+    //     // Refresh failed, clear tokens and redirect to login
+    //     this.clearTokens();
+    //     throw new Error('Authentication failed');
+    //   }
+    // }
 
     if (!response.ok) {
       const error: APIError = {

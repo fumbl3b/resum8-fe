@@ -56,7 +56,8 @@ export default function ProfilePage() {
   const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
 
   useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
+    // Auth disabled for testing
+      // if (!isLoading && !isAuthenticated) {
       router.push('/login');
     }
   }, [isAuthenticated, isLoading, router]);

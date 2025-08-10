@@ -15,11 +15,13 @@ export default function UploadPage() {
   const { isAuthenticated, isLoading } = useAuth();
   const { jobDescription, resumeText, setCurrentStep } = useAppStore();
 
-  useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
-      router.push('/login');
-    }
-  }, [isAuthenticated, isLoading, router]);
+  // Auth disabled for testing - skip redirect
+  // useEffect(() => {
+  //   // Auth disabled for testing
+      // if (!isLoading && !isAuthenticated) {
+  //     router.push('/login');
+  //   }
+  // }, [isAuthenticated, isLoading, router]);
 
   const canProceed = jobDescription.trim() && resumeText.trim();
 

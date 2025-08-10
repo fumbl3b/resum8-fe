@@ -28,7 +28,8 @@ export default function JobApplicationPage() {
   const [step, setStep] = useState<'job-description' | 'resume-selection'>('job-description');
 
   useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
+    // Auth disabled for testing
+      // if (!isLoading && !isAuthenticated) {
       router.push('/login');
     }
   }, [isAuthenticated, isLoading, router]);
