@@ -20,7 +20,7 @@ This document outlines how the Resum8 frontend interacts with the backend API to
   "password": "password123"
 }
 ```
-**Expected Response:**
+**Expected Response:** ✅ **FIXED IN BACKEND**
 ```json
 {
   "message": "User created successfully",
@@ -37,7 +37,7 @@ This document outlines how the Resum8 frontend interacts with the backend API to
   "password": "password123"
 }
 ```
-**Expected Response:**
+**Expected Response:** ✅ **FIXED IN BACKEND**
 ```json
 {
   "access_token": "jwt_access_token_here",
@@ -70,7 +70,7 @@ Authorization: Bearer <refresh_token>
 ```
 Authorization: Bearer <access_token>
 ```
-**Expected Response:**
+**Expected Response:** ✅ **FIXED IN BACKEND**
 ```json
 {
   "id": 123,
@@ -81,6 +81,7 @@ Authorization: Bearer <access_token>
   "created_at": "2025-01-01T00:00:00Z"
 }
 ```
+**Note:** Backend now returns direct response format (not nested under "user" object)
 
 ## Resume Management
 
@@ -452,12 +453,20 @@ Access-Control-Allow-Credentials: true
 }
 ```
 
-## Current Issues to Address
+## Backend Integration Status
 
-1. **Backend 500 Errors:** Health endpoint and auth endpoints returning internal server errors
-2. **CORS Configuration:** Ensure proper CORS headers for development ports
-3. **Token Validation:** Verify JWT token format and validation on backend
-4. **Error Handling:** Ensure consistent error response format
+### ✅ RESOLVED ISSUES
+1. **Auth Endpoints Fixed:** Registration, Login, and Current User endpoints now match frontend expectations
+2. **Response Format:** All auth responses updated to match frontend contract
+3. **User Fields:** Added required `onboarding_stage` and `has_default_resume` fields
+
+### 🔄 PENDING DEPLOYMENT
+**The backend fixes are complete but need to be redeployed to production to take effect.**
+
+### ⚠️ REMAINING ISSUES TO MONITOR
+1. **CORS Configuration:** Ensure proper CORS headers for `localhost:3000` and `localhost:3002`
+2. **Health Endpoint:** Verify health endpoint stability after deployment
+3. **Error Handling:** Ensure consistent error response format across all endpoints
 
 ## Frontend Features Summary
 
