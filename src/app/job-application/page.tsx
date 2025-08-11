@@ -28,10 +28,10 @@ export default function JobApplicationPage() {
   const [step, setStep] = useState<'job-description' | 'resume-selection'>('job-description');
 
   useEffect(() => {
-    // Auth disabled for testing
-      // if (!isLoading && !isAuthenticated) {
-      router.push('/login');
-    }
+    // Auth disabled for testing - skip redirect
+    // if (!isLoading && !isAuthenticated) {
+    //   router.push('/login');
+    // }
   }, [isAuthenticated, isLoading, router]);
 
   const jobAnalysisMutation = useMutation({

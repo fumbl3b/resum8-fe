@@ -45,10 +45,10 @@ export default function OptimizePage() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    // Auth disabled for testing
-      // if (!isLoading && !isAuthenticated) {
-      router.push('/login');
-    }
+    // Auth disabled for testing - skip redirect
+    // if (!isLoading && !isAuthenticated) {
+    //   router.push('/login');
+    // }
   }, [isAuthenticated, isLoading, router]);
 
   // Start comparison session to get improvements
