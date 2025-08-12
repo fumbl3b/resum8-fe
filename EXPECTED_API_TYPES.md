@@ -300,7 +300,7 @@ interface ApplyImprovementsResponse {
 ### POST /convert/latex
 ```typescript
 interface ConvertLatexResponse {
-  pdf_url: string;
+  pdf_content: string;  // Base64 encoded PDF content
   conversion_time: string;
 }
 ```

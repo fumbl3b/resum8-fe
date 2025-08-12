@@ -119,15 +119,15 @@ function DiffContent() {
             changes: diff.map((d, index) => ({
               type: d.type as 'modification' | 'addition' | 'deletion',
               section: `Section ${index + 1}`,
-              line_number: d.lineNumber || index + 1,
-              before: d.type === 'removed' ? d.content : undefined,
-              after: d.type === 'added' ? d.content : undefined,
+              line_number: (d.lineNumber.before || d.lineNumber.after || index + 1) as number,
+              before: d.type === 'deletion' ? d.content : undefined,
+              after: d.type === 'addition' ? d.content : undefined,
             })),
             statistics: {
               total_changes: diff.length,
-              additions: diff.filter(d => d.type === 'added').length,
-              modifications: diff.filter(d => d.type === 'modified').length,
-              deletions: diff.filter(d => d.type === 'removed').length,
+              additions: diff.filter(d => d.type === 'addition').length,
+              modifications: 0, // We don't have a separate modification type in our diff
+              deletions: diff.filter(d => d.type === 'deletion').length,
             }
           },
           editable_text: optimizedResumeText
@@ -268,15 +268,15 @@ function DiffContent() {
                 changes: diff.map((d, index) => ({
                   type: d.type as 'modification' | 'addition' | 'deletion',
                   section: `Section ${index + 1}`,
-                  line_number: d.lineNumber || index + 1,
-                  before: d.type === 'removed' ? d.content : undefined,
-                  after: d.type === 'added' ? d.content : undefined,
+                  line_number: (d.lineNumber.before || d.lineNumber.after || index + 1) as number,
+                  before: d.type === 'deletion' ? d.content : undefined,
+                  after: d.type === 'addition' ? d.content : undefined,
                 })),
                 statistics: {
                   total_changes: diff.length,
-                  additions: diff.filter(d => d.type === 'added').length,
-                  modifications: diff.filter(d => d.type === 'modified').length,
-                  deletions: diff.filter(d => d.type === 'removed').length,
+                  additions: diff.filter(d => d.type === 'addition').length,
+                  modifications: 0, // We don't have a separate modification type in our diff
+                  deletions: diff.filter(d => d.type === 'deletion').length,
                 }
               },
               editable_text: optimizedText
@@ -497,19 +497,19 @@ function DiffContent() {
                   <div className="grid grid-cols-4 gap-4">
                     <div className="text-center p-4 bg-green-50 dark:bg-green-950/20 rounded-lg">
                       <div className="text-2xl font-bold text-green-600 mb-1">
-                        {comparisonData?.diff_data?.statistics?.additions || diffResults.filter(d => d.type === 'added').length}
+                        {comparisonData?.diff_data?.statistics?.additions || diffResults.filter(d => d.type === 'addition').length}
                       </div>
                       <div className="text-sm text-green-700 dark:text-green-300">Additions</div>
                     </div>
                     <div className="text-center p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg">
                       <div className="text-2xl font-bold text-blue-600 mb-1">
-                        {comparisonData?.diff_data?.statistics?.modifications || diffResults.filter(d => d.type === 'modified').length}
+                        {comparisonData?.diff_data?.statistics?.modifications || 0}
                       </div>
                       <div className="text-sm text-blue-700 dark:text-blue-300">Modifications</div>
                     </div>
                     <div className="text-center p-4 bg-red-50 dark:bg-red-950/20 rounded-lg">
                       <div className="text-2xl font-bold text-red-600 mb-1">
-                        {comparisonData?.diff_data?.statistics?.deletions || diffResults.filter(d => d.type === 'removed').length}
+                        {comparisonData?.diff_data?.statistics?.deletions || diffResults.filter(d => d.type === 'deletion').length}
                       </div>
                       <div className="text-sm text-red-700 dark:text-red-300">Deletions</div>
                     </div>

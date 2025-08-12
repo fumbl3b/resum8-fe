@@ -648,8 +648,8 @@ class APIClient {
     });
   }
 
-  async convertToLatex(latexContent: string, style: string = 'modern'): Promise<{ pdf_url: string; conversion_time: string }> {
-    return this.request<{ pdf_url: string; conversion_time: string }>('/convert/latex', {
+  async convertToLatex(latexContent: string, style: string = 'modern'): Promise<{ pdf_url?: string; pdf_content?: string; conversion_time: string }> {
+    return this.request<{ pdf_url?: string; pdf_content?: string; conversion_time: string }>('/convert/latex', {
       method: 'POST',
       body: JSON.stringify({
         latex_content: latexContent,
