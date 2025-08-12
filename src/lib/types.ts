@@ -75,14 +75,26 @@ export interface LaTeXGenerationResponse {
   error_message?: string;
 }
 
+// Resume Analysis Types
+export interface AnalysisResult {
+  overall_score: number;
+  ats_score: number;
+  strengths: Array<{ category: string; impact: string; description: string }>;
+  weaknesses: Array<{ id?: string; category: string; impact: string; description: string; suggestion: string }>;
+  resume_text?: string;
+}
+
 // Application State Types
 export interface AppState {
   currentStep: 'upload' | 'analyze' | 'optimize' | 'generate';
   jobDescription: string;
   resumeFile?: File;
-  resumeText: string;
+  resumeText: string; // Original resume text
+  optimizedResumeText?: string; // Optimized resume text after improvements
   resumeId: number | null;
+  comparisonSessionId?: number; // Session ID for the comparison
   jobAnalysis?: JobAnalysisResponse;
+  analysisResults?: AnalysisResult;
   optimizationResults?: ResumeOptimizationResponse;
   selectedSuggestions: string[]; // Array of suggestion IDs
   latexResult?: LaTeXGenerationResponse;

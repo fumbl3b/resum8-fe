@@ -31,6 +31,20 @@ interface AnalysisResult {
   resume_text?: string;
 }
 
+interface ResumeAnalysisResponse {
+  id: number;
+  resume_id: number;
+  status: 'RUNNING' | 'DONE' | 'ERROR';
+  analysis_type: string;
+  overall_score: number;
+  ats_score: number;
+  results?: AnalysisResult;
+  created_at: string;
+  completed_at?: string;
+  started_at?: string;
+  error_message?: string | null;
+}
+
 interface AnalysisScore {
   category: string;
   score: number;
@@ -40,21 +54,33 @@ interface AnalysisScore {
 }
 
 export default function AnalyzeResumePage() {
+  const router = useRouter();
+
+  useEffect(() => {
+    // Redirect to the new unified flow
+    router.replace('/job-analysis');
+  }, [router]);
+
+  return null;
+}
+
+function OldAnalyzeResumePage() {
   const { isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
-  const { resumeText, resumeFile, resumeId, setCurrentStep } = useAppStore();
+  const { resumeText, resumeFile, resumeId, setCurrentStep, jobDescription, jobAnalysis } = useAppStore();
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisComplete, setAnalysisComplete] = useState(false);
   const [analysisScores, setAnalysisScores] = useState<AnalysisScore[]>([]);
   const [error, setError] = useState('');
+  
+  // Determine if this is job-specific analysis
+  const isJobSpecificAnalysis = Boolean(jobDescription && jobAnalysis);
 
-  // Auth disabled for testing - skip redirect
-  // useEffect(() => {
-  //   // Auth disabled for testing
-      // if (!isLoading && !isAuthenticated) {
-  //     router.push('/login');
-  //   }
-  // }, [isAuthenticated, isLoading, router]);
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      router.push('/login');
+    }
+  }, [isAuthenticated, isLoading, router]);
 
 
   const handleAnalyze = async () => {
@@ -67,54 +93,195 @@ export default function AnalyzeResumePage() {
     setError('');
     
     try {
-      // Start the analysis
-      const startResponse = await apiClient.analyzeResume({
-        resume_id: resumeId,
-        analysis_type: 'comprehensive'
-      });
-      
-      // Poll for results
-      const pollForResults = async (analysisId: number) => {
-        let attempts = 0;
-        const maxAttempts = 30; // 30 attempts with 2-second intervals = 1 minute max
+      if (isJobSpecificAnalysis) {
+        // Validate required data for job-specific analysis
+        if (!resumeId) {
+          throw new Error('Resume ID is missing for job-specific analysis');
+        }
+        if (!jobDescription?.trim()) {
+          throw new Error('Job description is missing for job-specific analysis');
+        }
         
-        while (attempts < maxAttempts) {
-          try {
-            const result = await apiClient.getResumeAnalysis(analysisId);
-            
-            if (result.status === 'DONE') {
-              if (result.results) {
-                // Convert API results to our UI format for compatibility
-                const convertedScores = convertAnalysisResults(result.results as AnalysisResult);
+        console.log('Starting job-specific analysis with:', {
+          resumeId,
+          jobDescriptionLength: jobDescription.length,
+          jobTitle: jobAnalysis?.benefits?.join(' ') || 'Target Position'
+        });
+        
+        // Job-specific analysis using comparison API
+        const startResponse = await apiClient.startComparison({
+          base_resume_id: resumeId,
+          job_description: jobDescription,
+          job_title: jobAnalysis?.benefits?.join(' ') || 'Target Position'
+        });
+        
+        console.log('Comparison start response:', startResponse);
+        
+        if (!startResponse?.id) {
+          console.error('Invalid start response:', startResponse);
+          throw new Error('Failed to start comparison - no session ID returned from server');
+        }
+        
+        // Poll for completion
+        const pollForCompletion = async (sessionId: number) => {
+          let attempts = 0;
+          const maxAttempts = 30;
+
+          while (attempts < maxAttempts) {
+            try {
+              console.log(`Polling attempt ${attempts + 1} for session ID: ${sessionId}`);
+              const sessionData = await apiClient.getComparisonSession(sessionId);
+              console.log('Session data:', sessionData);
+
+              if (sessionData.status === 'DONE') {
+                // Convert comparison results to analysis format
+                const analysisData = {
+                  overall_score: 7.5, // We'll derive this from improvements
+                  ats_score: 6.8,
+                  strengths: [], // Could derive from successful matches
+                  weaknesses: sessionData.improvements ? [
+                    ...(sessionData.improvements.high_impact || []).map(imp => ({
+                      category: imp.category,
+                      impact: 'high' as const,
+                      description: imp.description,
+                      suggestion: imp.improved_text || imp.description
+                    })),
+                    ...(sessionData.improvements.medium_impact || []).map(imp => ({
+                      category: imp.category,
+                      impact: 'medium' as const,
+                      description: imp.description,
+                      suggestion: imp.improved_text || imp.description
+                    })),
+                    ...(sessionData.improvements.low_impact || []).map(imp => ({
+                      category: imp.category,
+                      impact: 'low' as const,
+                      description: imp.description,
+                      suggestion: imp.improved_text || imp.description
+                    }))
+                  ] : []
+                };
+                
+                const convertedScores = convertAnalysisResults(analysisData);
                 setAnalysisScores(convertedScores);
                 setAnalysisComplete(true);
                 
-                // Extract text if available in results
-                const { setResumeText } = useAppStore.getState();
-                if ((result.results as AnalysisResult).resume_text) {
-                  setResumeText((result.results as AnalysisResult).resume_text!);
-                }
+                // Store analysis results in app store
+                const { setAnalysisResults } = useAppStore.getState();
+                setAnalysisResults(analysisData);
+                break;
+              } else if (sessionData.status === 'ERROR') {
+                throw new Error('Job-specific analysis failed on server');
               }
-              break;
-            } else if (result.status === 'ERROR') {
-              throw new Error('Analysis failed on server');
+
+              await new Promise(resolve => setTimeout(resolve, 2000));
+              attempts++;
+            } catch (pollError) {
+              console.error('Error polling job-specific analysis:', pollError);
+              console.error('Session ID that failed:', sessionId);
+              
+              // If it's a 404 error, the session ID is probably invalid
+              if (pollError instanceof Error && pollError.message.includes('404')) {
+                throw new Error(`Comparison session not found (ID: ${sessionId}). The session may have expired or the initial request failed.`);
+              }
+              
+              throw pollError;
             }
-            
-            // Wait 2 seconds before next poll
-            await new Promise(resolve => setTimeout(resolve, 2000));
-            attempts++;
-          } catch (pollError) {
-            console.error('Error polling analysis results:', pollError);
-            throw pollError;
           }
-        }
+
+          if (attempts >= maxAttempts) {
+            throw new Error('Job-specific analysis timed out. Please try again.');
+          }
+        };
+
+        await pollForCompletion(startResponse.id);
+      } else {
+        // Basic resume analysis
+        const startResponse = await apiClient.analyzeResume({
+          resume_id: resumeId,
+          analysis_type: 'comprehensive'
+        });
         
-        if (attempts >= maxAttempts) {
-          throw new Error('Analysis timed out. Please try again.');
+        // Check if the response already contains complete analysis results
+        if (startResponse && typeof startResponse === 'object' && 'overall_score' in startResponse) {
+          // The backend returned complete results immediately
+        const result = startResponse as ResumeAnalysisResponse;
+        
+        // Handle the actual response structure from the backend
+        const analysisData = result.results || {
+          overall_score: result.overall_score,
+          ats_score: result.ats_score,
+          strengths: [],
+          weaknesses: []
+        };
+        
+        // Convert API results to our UI format for compatibility
+        const convertedScores = convertAnalysisResults(analysisData);
+        setAnalysisScores(convertedScores);
+        setAnalysisComplete(true);
+        
+        // Store analysis results in app store for the optimize page
+        const { setResumeText, setAnalysisResults } = useAppStore.getState();
+        setAnalysisResults(analysisData);
+        
+        // Extract text if available in results
+        if (analysisData.resume_text) {
+          setResumeText(analysisData.resume_text);
         }
-      };
-      
-      await pollForResults(startResponse.analysis_id);
+      } else {
+        // Fall back to polling if the initial call only returned an analysis_id
+        const pollResponse = startResponse as { analysis_id: number; status: string; message: string };
+        const pollForResults = async (analysisId: number) => {
+          let attempts = 0;
+          const maxAttempts = 30; // 30 attempts with 2-second intervals = 1 minute max
+          
+          while (attempts < maxAttempts) {
+            try {
+              const result = await apiClient.getResumeAnalysis(analysisId) as ResumeAnalysisResponse;
+              
+              if (result.status === 'DONE') {
+                // Handle the actual response structure from the backend
+                const analysisData = result.results || {
+                  overall_score: result.overall_score,
+                  ats_score: result.ats_score,
+                  strengths: [],
+                  weaknesses: []
+                };
+                
+                // Convert API results to our UI format for compatibility
+                const convertedScores = convertAnalysisResults(analysisData);
+                setAnalysisScores(convertedScores);
+                setAnalysisComplete(true);
+                
+                // Store analysis results in app store for the optimize page
+                const { setResumeText, setAnalysisResults } = useAppStore.getState();
+                setAnalysisResults(analysisData);
+                
+                // Extract text if available in results
+                if (analysisData.resume_text) {
+                  setResumeText(analysisData.resume_text);
+                }
+                break;
+              } else if (result.status === 'ERROR') {
+                throw new Error('Analysis failed on server');
+              }
+              
+              // Wait 2 seconds before next poll
+              await new Promise(resolve => setTimeout(resolve, 2000));
+              attempts++;
+            } catch (pollError) {
+              console.error('Error polling analysis results:', pollError);
+              throw pollError;
+            }
+          }
+          
+          if (attempts >= maxAttempts) {
+            throw new Error('Analysis timed out. Please try again.');
+          }
+        };
+        
+        await pollForResults(pollResponse.analysis_id);
+        }
+      }
       
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Analysis failed. Please try again.';
@@ -218,16 +385,16 @@ export default function AnalyzeResumePage() {
           <div className="flex items-center justify-between mb-8">
             <Button
               variant="outline"
-              onClick={() => router.push('/dashboard')}
+              onClick={() => router.push(isJobSpecificAnalysis ? '/job-application' : '/dashboard')}
               className="flex items-center gap-2"
             >
               <ArrowLeft className="h-4 w-4" />
-              Back to Dashboard
+              {isJobSpecificAnalysis ? 'Back to Job Application' : 'Back to Dashboard'}
             </Button>
             <div className="flex items-center gap-2">
               <FileText className="w-6 h-6 text-primary" />
               <h1 className="text-2xl font-bold text-foreground">
-                Analyze Resume
+                {isJobSpecificAnalysis ? 'Job-Tailored Analysis' : 'Analyze Resume'}
               </h1>
             </div>
             <div className="w-32" />
@@ -237,9 +404,12 @@ export default function AnalyzeResumePage() {
             <div className="max-w-4xl mx-auto">
               <Card>
                 <CardHeader>
-                  <CardTitle>Upload Your Resume</CardTitle>
+                  <CardTitle>{isJobSpecificAnalysis ? 'Analyze Against Job Requirements' : 'Upload Your Resume'}</CardTitle>
                   <CardDescription>
-                    Upload your resume to get detailed analysis of strengths, weaknesses, and optimization recommendations.
+                    {isJobSpecificAnalysis 
+                      ? 'Get detailed analysis of how well your resume matches the job requirements and receive targeted improvement suggestions.'
+                      : 'Upload your resume to get detailed analysis of strengths, weaknesses, and optimization recommendations.'
+                    }
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -256,7 +426,10 @@ export default function AnalyzeResumePage() {
                             </span>
                           </div>
                           <p className="text-sm text-green-700 dark:text-green-200">
-                            Ready to analyze your resume for strengths and areas for improvement.
+                            {isJobSpecificAnalysis 
+                              ? 'Ready to analyze how well your resume matches the job requirements.'
+                              : 'Ready to analyze your resume for strengths and areas for improvement.'
+                            }
                           </p>
                         </div>
 
@@ -269,12 +442,12 @@ export default function AnalyzeResumePage() {
                             {isAnalyzing ? (
                               <>
                                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                                Analyzing Resume...
+                                {isJobSpecificAnalysis ? 'Analyzing Job Match...' : 'Analyzing Resume...'}
                               </>
                             ) : (
                               <>
                                 <BarChart3 className="h-4 w-4" />
-                                Start Analysis
+                                {isJobSpecificAnalysis ? 'Analyze Job Match' : 'Start Analysis'}
                               </>
                             )}
                           </Button>

@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
 import { useAppStore } from '@/stores/app-store';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
 import { 
   ArrowLeft, 
@@ -21,18 +21,37 @@ import {
 } from 'lucide-react';
 
 export default function JobApplicationPage() {
-  const { isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
-  const { resumeText, resumeId, setJobDescription, setJobAnalysis, setCurrentStep, jobAnalysis } = useAppStore();
-  const [jobDescriptionText, setJobDescriptionText] = useState('');
-  const [step, setStep] = useState<'job-description' | 'resume-selection'>('job-description');
 
   useEffect(() => {
-    // Auth disabled for testing - skip redirect
-    // if (!isLoading && !isAuthenticated) {
-    //   router.push('/login');
-    // }
+    // Redirect to the new unified flow
+    router.replace('/resume-select');
+  }, [router]);
+
+  return null;
+}
+
+function OldJobApplicationPage() {
+  const { isAuthenticated, isLoading } = useAuth();
+  const router = useRouter();
+  const { resumeText, resumeId, setJobDescription, setJobAnalysis, setCurrentStep, setResumeId, jobAnalysis } = useAppStore();
+  const [jobDescriptionText, setJobDescriptionText] = useState('');
+  const [step, setStep] = useState<'job-description' | 'resume-selection'>('job-description');
+  const [selectedResumeId, setSelectedResumeId] = useState<number | null>(null);
+
+  useEffect(() => {
+    
+    if (!isLoading && !isAuthenticated) {
+      router.push('/login');
+    }
   }, [isAuthenticated, isLoading, router]);
+
+  // Fetch user's resumes for selection
+  const { data: resumesData } = useQuery({
+    queryKey: ['resumes'],
+    queryFn: () => apiClient.getResumes(),
+    enabled: isAuthenticated && step === 'resume-selection',
+  });
 
   const jobAnalysisMutation = useMutation({
     mutationFn: (jobDescription: string) => apiClient.analyzeJob({ job_description: jobDescription }),
@@ -52,15 +71,15 @@ export default function JobApplicationPage() {
     jobAnalysisMutation.mutate(jobDescriptionText);
   };
 
-  const handleUseExistingResume = () => {
-    if (resumeId) {
-      setCurrentStep('analyze');
-      router.push('/analyze-resume');
-    }
+  const handleSelectResume = (resumeIdToUse: number) => {
+    setSelectedResumeId(resumeIdToUse);
+    setResumeId(resumeIdToUse);
+    setCurrentStep('analyze');
+    router.push('/analyze-resume');
   };
 
   const handleUploadNewResume = () => {
-    router.push('/analyze-resume');
+    router.push('/upload');
   };
 
   if (isLoading) {
@@ -280,68 +299,52 @@ We are looking for a Senior Software Engineer to join our team...
                     )}
                   </div>
 
-                  <div className="grid md:grid-cols-2 gap-6">
-                    {resumeId ? (
-                      <Card className="border-2 border-primary/20 bg-primary/5">
-                        <CardHeader>
-                          <CardTitle className="flex items-center gap-2">
-                            <FileText className="w-5 h-5 text-primary" />
-                            Use Existing Resume
-                          </CardTitle>
-                          <CardDescription>
-                            Continue with your previously uploaded resume
-                          </CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                          <div className="space-y-4">
-                            <div className="bg-white dark:bg-gray-800 p-3 rounded border">
-                              <p className="text-sm text-muted-foreground mb-1">Current Resume:</p>
-                              {resumeText ? (
-                                <>
-                                  <p className="text-xs text-foreground line-clamp-3">
-                                    {resumeText.substring(0, 150)}...
-                                  </p>
-                                  <Badge variant="secondary" className="mt-2">
-                                    {resumeText.length} characters
-                                  </Badge>
-                                </>
-                              ) : (
-                                <div className="text-xs text-muted-foreground py-2">
-                                  <p>Resume uploaded (ID: {resumeId})</p>
-                                  <p>Content will be available after analysis</p>
+                  <div className="space-y-4">
+                    {resumesData?.resumes && resumesData.resumes.length > 0 ? (
+                      <>
+                        <h3 className="text-lg font-semibold mb-4">Choose an existing resume:</h3>
+                        <div className="grid gap-4">
+                          {resumesData.resumes.map((resume) => (
+                            <Card key={resume.id} className="hover:shadow-md transition-shadow cursor-pointer border-2 hover:border-primary/20">
+                              <CardContent className="p-4">
+                                <div className="flex items-center justify-between mb-2">
+                                  <h4 className="font-medium text-foreground">{resume.title}</h4>
+                                  <div className="flex items-center gap-2">
+                                    {resume.is_default && (
+                                      <Badge variant="secondary" className="text-xs">Default</Badge>
+                                    )}
+                                    <Badge variant={resume.is_parsed ? "default" : "outline"} className="text-xs">
+                                      {resume.is_parsed ? "Parsed" : "Not Parsed"}
+                                    </Badge>
+                                  </div>
                                 </div>
-                              )}
-                            </div>
-                            <Button 
-                              onClick={handleUseExistingResume}
-                              className="w-full flex items-center gap-2"
-                            >
-                              <CheckCircle className="w-4 h-4" />
-                              Use This Resume
-                            </Button>
-                          </div>
-                        </CardContent>
-                      </Card>
+                                <div className="text-xs text-muted-foreground mb-3">
+                                  <p>Size: {Math.round(resume.size_bytes / 1024)} KB</p>
+                                  <p>Created: {new Date(resume.created_at).toLocaleDateString()}</p>
+                                </div>
+                                <Button 
+                                  onClick={() => handleSelectResume(resume.id)}
+                                  className="w-full flex items-center gap-2"
+                                  size="sm"
+                                >
+                                  <CheckCircle className="w-4 h-4" />
+                                  Use This Resume
+                                </Button>
+                              </CardContent>
+                            </Card>
+                          ))}
+                        </div>
+                        
+                        <div className="text-center my-6">
+                          <div className="text-sm text-muted-foreground">or</div>
+                        </div>
+                      </>
                     ) : (
-                      <Card className="border-2 border-dashed border-muted-foreground/50">
-                        <CardHeader>
-                          <CardTitle className="flex items-center gap-2 text-muted-foreground">
-                            <FileText className="w-5 h-5" />
-                            No Resume Found
-                          </CardTitle>
-                          <CardDescription>
-                            You haven&apos;t uploaded a resume yet
-                          </CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                          <p className="text-sm text-muted-foreground mb-4">
-                            Upload a resume first to use this option
-                          </p>
-                          <Button variant="outline" disabled className="w-full">
-                            No Resume Available
-                          </Button>
-                        </CardContent>
-                      </Card>
+                      <div className="text-center py-8">
+                        <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                        <p className="text-muted-foreground mb-4">No resumes found</p>
+                        <p className="text-sm text-muted-foreground mb-6">Upload your first resume to get started</p>
+                      </div>
                     )}
 
                     <Card className="hover:shadow-md transition-shadow">
@@ -355,24 +358,14 @@ We are looking for a Senior Software Engineer to join our team...
                         </CardDescription>
                       </CardHeader>
                       <CardContent>
-                        <div className="space-y-4">
-                          <p className="text-sm text-muted-foreground">
-                            Choose this option if you want to:
-                          </p>
-                          <ul className="text-sm text-muted-foreground space-y-1 ml-4">
-                            <li>• Upload a different version of your resume</li>
-                            <li>• Start fresh with a new document</li>
-                            <li>• Use a role-specific resume variant</li>
-                          </ul>
-                          <Button 
-                            onClick={handleUploadNewResume}
-                            variant="outline"
-                            className="w-full flex items-center gap-2"
-                          >
-                            <Upload className="w-4 h-4" />
-                            Upload New Resume
-                          </Button>
-                        </div>
+                        <Button 
+                          onClick={handleUploadNewResume}
+                          variant="outline"
+                          className="w-full flex items-center gap-2"
+                        >
+                          <Upload className="w-4 h-4" />
+                          Upload New Resume
+                        </Button>
                       </CardContent>
                     </Card>
                   </div>

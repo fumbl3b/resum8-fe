@@ -3,23 +3,48 @@
 import { Suspense, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Textarea } from '@/components/ui/textarea';
 import { DiffViewer } from '@/components/ui/diff-viewer';
 import { SideBySideViewer } from '@/components/ui/side-by-side-viewer';
 import { TabNavigation } from '@/components/ui/tab-navigation';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { generateDiff, DiffResult } from '@/lib/diff-utils';
+
+// Clean up text content for better readability in diff view
+const cleanTextForDiff = (text: string): string => {
+  if (!text) return '';
+  
+  // If text appears to have LaTeX commands despite API spec, clean them up
+  if (text.includes('\\') && (text.includes('{') || text.includes('}'))) {
+    console.log('⚠️ Detected potential LaTeX in text, cleaning for diff view...');
+    return text
+      // Remove common LaTeX commands while preserving content
+      .replace(/\\[a-zA-Z]+\{([^}]+)\}/g, '$1') // \command{content} -> content
+      .replace(/\\[a-zA-Z]+\*?/g, '') // Remove standalone commands
+      .replace(/\\\\/g, '\n') // Convert LaTeX line breaks to newlines
+      .replace(/[{}]/g, '') // Remove remaining braces
+      .replace(/\s+/g, ' ') // Normalize whitespace
+      .trim();
+  }
+  
+  return text;
+};
 import { useAppStore } from '@/stores/app-store';
-import { ArrowLeft, ArrowRight, Loader2, FileText, GitCompare, Eye } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Loader2, FileText, GitCompare, Eye, Edit, Download, Save } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { apiClient } from '@/lib/api';
 
 function DiffContent() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const sessionId = searchParams.get('sessionId');
   
   const [activeTab, setActiveTab] = useState('sideBySide');
   const [diffResults, setDiffResults] = useState<DiffResult[]>([]);
-  const [optimizedResumeText, setOptimizedResumeText] = useState('');
+  const [localOptimizedResumeText, setLocalOptimizedResumeText] = useState('');
+  const [editedResumeText, setEditedResumeText] = useState('');
+  const [isEditing, setIsEditing] = useState(false);
+  const [latexStyle, setLatexStyle] = useState<'modern' | 'classic' | 'minimal'>('modern');
+  const [isGeneratingLatex, setIsGeneratingLatex] = useState(false);
+  const [generatedLatex, setGeneratedLatex] = useState('');
   const [originalResumeText, setOriginalResumeText] = useState('');
   const [comparisonData, setComparisonData] = useState<{
     session_id: number;
@@ -46,14 +71,80 @@ function DiffContent() {
   
   const { 
     resumeText,
+    optimizedResumeText,
+    resumeId,
+    comparisonSessionId,
+    analysisResults,
+    selectedSuggestions,
     setCurrentStep
   } = useAppStore();
 
-  // Load comparison data from API
+  // Fetch comparison diff data
   useEffect(() => {
-    const loadComparisonData = async () => {
-      if (!sessionId) {
-        setError('No session ID provided. Please go back and select improvements.');
+    const fetchComparisonData = async () => {
+      console.log('🔍 Diff page state check:', {
+        resumeText: !!resumeText,
+        optimizedResumeText: !!optimizedResumeText,
+        resumeId,
+        comparisonSessionId,
+        resumeTextLength: resumeText?.length || 0,
+        optimizedTextLength: optimizedResumeText?.length || 0
+      });
+
+      // Check if we already have the optimized text from the store
+      if (resumeText && optimizedResumeText) {
+        console.log('✅ Using optimized text from app store');
+        console.log('📝 Store original text preview:', resumeText.substring(0, 200) + '...');
+        console.log('📝 Store improved text preview:', optimizedResumeText.substring(0, 200) + '...');
+        console.log('📊 Store text lengths:', {
+          original: resumeText.length,
+          improved: optimizedResumeText.length
+        });
+        
+        // Clean text for better diff viewing
+        const cleanOriginal = cleanTextForDiff(resumeText);
+        const cleanImproved = cleanTextForDiff(optimizedResumeText);
+        
+        setOriginalResumeText(cleanOriginal);
+        setLocalOptimizedResumeText(cleanImproved);
+        
+        // Generate diff results using cleaned text
+        const diff = generateDiff(cleanOriginal, cleanImproved);
+        setDiffResults(diff);
+        
+        // Create mock comparison data
+        setComparisonData({
+          session_id: comparisonSessionId || 0,
+          diff_data: {
+            changes: diff.map((d, index) => ({
+              type: d.type as 'modification' | 'addition' | 'deletion',
+              section: `Section ${index + 1}`,
+              line_number: d.lineNumber || index + 1,
+              before: d.type === 'removed' ? d.content : undefined,
+              after: d.type === 'added' ? d.content : undefined,
+            })),
+            statistics: {
+              total_changes: diff.length,
+              additions: diff.filter(d => d.type === 'added').length,
+              modifications: diff.filter(d => d.type === 'modified').length,
+              deletions: diff.filter(d => d.type === 'removed').length,
+            }
+          },
+          editable_text: optimizedResumeText
+        });
+        
+        setIsLoading(false);
+        return;
+      }
+
+      if (!comparisonSessionId) {
+        setError('No comparison session found. Please go back and complete the job analysis process.');
+        return;
+      }
+
+      // Validate that we have the minimum required data
+      if (!resumeId && !resumeText) {
+        setError('No resume data found. Please go back and select a resume.');
         return;
       }
 
@@ -61,43 +152,227 @@ function DiffContent() {
       setError('');
 
       try {
-        // Get the comparison diff data
-        const diffData = await apiClient.getComparisonDiff(parseInt(sessionId));
-        setComparisonData(diffData);
-
-        // Set the editable text as the optimized version
-        setOptimizedResumeText(diffData.editable_text);
+        console.log('📥 Fetching resume text for session:', comparisonSessionId);
         
-        // Use the app store resume text as original
-        setOriginalResumeText(resumeText || '');
-
-        // Generate diff results for the diff viewer
-        const diff = generateDiff(resumeText || '', diffData.editable_text);
+        // Use the new /compare/{session_id}/resume-text endpoint to get both original and improved text
+        const resumeData = await apiClient.getComparisonResumeText(comparisonSessionId);
+        console.log('📄 Received resume text data:', resumeData);
+        
+        // Debug the content types and lengths
+        console.log('📝 Original text preview:', resumeData.original_text?.substring(0, 200) + '...');
+        console.log('📝 Improved text preview:', resumeData.improved_text?.substring(0, 200) + '...');
+        console.log('📊 Text lengths:', {
+          original: resumeData.original_text?.length || 0,
+          improved: resumeData.improved_text?.length || 0
+        });
+        
+        // Check if content looks like LaTeX or other formatted content
+        const originalHasLatex = resumeData.original_text?.includes('\\') || resumeData.original_text?.includes('{document}');
+        const improvedHasLatex = resumeData.improved_text?.includes('\\') || resumeData.improved_text?.includes('{document}');
+        console.log('🔍 Content type analysis:', {
+          originalHasLatex,
+          improvedHasLatex,
+          originalStartsWith: resumeData.original_text?.substring(0, 50),
+          improvedStartsWith: resumeData.improved_text?.substring(0, 50)
+        });
+        
+        // Clean text for better diff viewing
+        const cleanOriginal = cleanTextForDiff(resumeData.original_text || '');
+        const cleanImproved = cleanTextForDiff(resumeData.improved_text || '');
+        
+        setOriginalResumeText(cleanOriginal);
+        setLocalOptimizedResumeText(cleanImproved);
+        
+        // Generate client-side diff for visualization using cleaned text
+        const diff = generateDiff(cleanOriginal, cleanImproved);
+        console.log('🔧 Generated diff results:', {
+          totalChanges: diff.length,
+          additions: diff.filter(d => d.type === 'addition').length,
+          deletions: diff.filter(d => d.type === 'deletion').length,
+          unchanged: diff.filter(d => d.type === 'unchanged').length,
+          sampleChanges: diff.slice(0, 5).map(d => ({ type: d.type, content: d.content.substring(0, 50) + '...' }))
+        });
         setDiffResults(diff);
-
-      } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'Failed to load comparison data.';
-        setError(errorMessage);
-        console.error('Comparison data error:', err);
+        
+        // Create comparison data structure for consistency
+        setComparisonData({
+          session_id: resumeData.session_id,
+          diff_data: {
+            changes: diff.map((d, index) => ({
+              type: d.type as 'modification' | 'addition' | 'deletion',
+              section: `Section ${index + 1}`,
+              line_number: d.lineNumber || index + 1,
+              before: d.type === 'removed' ? d.content : undefined,
+              after: d.type === 'added' ? d.content : undefined,
+            })),
+            statistics: {
+              total_changes: diff.length,
+              additions: diff.filter(d => d.type === 'added').length,
+              modifications: diff.filter(d => d.type === 'modified').length,
+              deletions: diff.filter(d => d.type === 'removed').length,
+            }
+          },
+          editable_text: resumeData.improved_text
+        });
+        
+      } catch (error) {
+        console.error('❌ Error fetching resume text:', error);
+        
+        // Fallback: try the old diff endpoint
+        try {
+          console.log('🔄 Trying fallback diff endpoint...');
+          const diffData = await apiClient.getComparisonDiff(comparisonSessionId);
+          console.log('📄 Received diff data:', diffData);
+          
+          setComparisonData(diffData);
+          setOriginalResumeText(diffData.editable_text.split('\n\n--- OPTIMIZED VERSION ---\n\n')[0] || 'Original resume text');
+          setLocalOptimizedResumeText(diffData.editable_text);
+          
+          // Generate client-side diff for visualization
+          const diff = generateDiff(
+            diffData.editable_text.split('\n\n--- OPTIMIZED VERSION ---\n\n')[0] || '',
+            diffData.editable_text
+          );
+          setDiffResults(diff);
+          
+        } catch (fallbackError) {
+          console.error('❌ Fallback diff endpoint also failed:', fallbackError);
+          
+          // Final fallback: try to create a basic diff from analysis results
+          if (resumeText && analysisResults?.weaknesses && analysisResults.weaknesses.length > 0) {
+            console.log('🔄 Using final fallback: generating diff from analysis results');
+            
+            setOriginalResumeText(resumeText);
+            
+            // Create a simple optimized version with suggestions applied
+            let optimizedText = resumeText;
+            const appliedSuggestions = analysisResults.weaknesses
+              .filter((_, index) => selectedSuggestions.includes(`improvement-${index + 1}`))
+              .map(weakness => weakness.suggestion)
+              .join('\n\n');
+            
+            if (appliedSuggestions) {
+              optimizedText += '\n\n--- APPLIED IMPROVEMENTS ---\n\n' + appliedSuggestions;
+            }
+            
+            setLocalOptimizedResumeText(optimizedText);
+            
+            // Generate diff results
+            const diff = generateDiff(resumeText, optimizedText);
+            setDiffResults(diff);
+            
+            // Create mock comparison data
+            setComparisonData({
+              session_id: comparisonSessionId,
+              diff_data: {
+                changes: diff.map((d, index) => ({
+                  type: d.type as 'modification' | 'addition' | 'deletion',
+                  section: `Section ${index + 1}`,
+                  line_number: d.lineNumber || index + 1,
+                  before: d.type === 'removed' ? d.content : undefined,
+                  after: d.type === 'added' ? d.content : undefined,
+                })),
+                statistics: {
+                  total_changes: diff.length,
+                  additions: diff.filter(d => d.type === 'added').length,
+                  modifications: diff.filter(d => d.type === 'modified').length,
+                  deletions: diff.filter(d => d.type === 'removed').length,
+                }
+              },
+              editable_text: optimizedText
+            });
+          } else {
+            setError('Unable to load comparison data. Please go back and complete the optimization process.');
+          }
+        }
       } finally {
         setIsLoading(false);
       }
     };
 
-    loadComparisonData();
-  }, [sessionId, resumeText]);
+    // Only run if we're not already loading and have necessary data
+    if (!isLoading) {
+      setIsLoading(true);
+      fetchComparisonData();
+    }
+  }, [comparisonSessionId, resumeId, resumeText, optimizedResumeText, analysisResults, selectedSuggestions]);
+
+  // Sync edited text with optimized text when it changes
+  useEffect(() => {
+    if (localOptimizedResumeText && !editedResumeText) {
+      setEditedResumeText(localOptimizedResumeText);
+    }
+  }, [localOptimizedResumeText, editedResumeText]);
+
+  // Debug current state
+  useEffect(() => {
+    console.log('🔍 Diff page state updated:', {
+      hasComparisonData: !!comparisonData,
+      hasDiffResults: diffResults.length > 0,
+      hasLocalOptimizedText: !!localOptimizedResumeText,
+      hasOriginalText: !!originalResumeText,
+      hasEditedText: !!editedResumeText,
+      isEditing,
+      isLoading
+    });
+  }, [comparisonData, diffResults, localOptimizedResumeText, originalResumeText, editedResumeText, isEditing, isLoading]);
 
   const handleNext = () => {
-    if (sessionId) {
-      router.push(`/generate?sessionId=${sessionId}`);
-    } else {
-      setCurrentStep('generate');
-      router.push('/generate');
-    }
+    router.push('/download');
   };
 
   const handleBack = () => {
     router.push('/optimize');
+  };
+
+  const handleEditToggle = () => {
+    if (isEditing) {
+      // Save the edited text
+      setLocalOptimizedResumeText(editedResumeText);
+      
+      // Update the app store with the edited text
+      const { setOptimizedResumeText } = useAppStore.getState();
+      setOptimizedResumeText(editedResumeText);
+      
+      console.log('📝 Saved edited resume text:', editedResumeText.length, 'characters');
+    }
+    setIsEditing(!isEditing);
+  };
+
+  const handleGenerateLatex = async () => {
+    if (!comparisonSessionId) {
+      setError('No comparison session found. Please complete the optimization process first.');
+      return;
+    }
+
+    setIsGeneratingLatex(true);
+    setError('');
+
+    try {
+      console.log('🔧 Generating LaTeX with style:', latexStyle);
+      console.log('📝 Using custom text:', !!editedResumeText);
+      
+      const result = await apiClient.generateLatex(comparisonSessionId, {
+        latex_style: latexStyle,
+        custom_text: editedResumeText || localOptimizedResumeText
+      });
+
+      console.log('✅ LaTeX generated successfully:', {
+        textSource: result.text_source,
+        latexLength: result.latex_content.length
+      });
+
+      setGeneratedLatex(result.latex_content);
+      
+      // Switch to the LaTeX tab to show the result
+      setActiveTab('latex');
+      
+    } catch (error) {
+      console.error('❌ Error generating LaTeX:', error);
+      setError(`Failed to generate LaTeX: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsGeneratingLatex(false);
+    }
   };
 
   if (error) {
@@ -178,7 +453,37 @@ function DiffContent() {
             <div className="w-40" />
           </div>
 
-          {comparisonData && diffResults.length > 0 && (
+          {/* Progress Indicator */}
+          <div className="mb-8">
+            <div className="flex items-center justify-between max-w-2xl mx-auto">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full bg-green-500 text-white flex items-center justify-center text-sm font-medium">✓</div>
+                <span className="text-sm font-medium text-foreground">Resume</span>
+              </div>
+              <div className="flex-1 h-px bg-muted mx-4"></div>
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full bg-green-500 text-white flex items-center justify-center text-sm font-medium">✓</div>
+                <span className="text-sm font-medium text-foreground">Job Analysis</span>
+              </div>
+              <div className="flex-1 h-px bg-muted mx-4"></div>
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full bg-green-500 text-white flex items-center justify-center text-sm font-medium">✓</div>
+                <span className="text-sm font-medium text-foreground">Optimize</span>
+              </div>
+              <div className="flex-1 h-px bg-muted mx-4"></div>
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center text-sm font-medium">4</div>
+                <span className="text-sm font-medium text-foreground">Review</span>
+              </div>
+              <div className="flex-1 h-px bg-muted mx-4"></div>
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full bg-muted text-muted-foreground flex items-center justify-center text-sm font-medium">5</div>
+                <span className="text-sm font-medium text-muted-foreground">Download</span>
+              </div>
+            </div>
+          </div>
+
+          {(comparisonData || (diffResults.length > 0 && localOptimizedResumeText)) && (
             <>
               {/* Summary of changes */}
               <Card className="mb-6">
@@ -189,34 +494,32 @@ function DiffContent() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  {comparisonData?.diff_data?.statistics && (
-                    <div className="grid grid-cols-4 gap-4">
-                      <div className="text-center p-4 bg-green-50 dark:bg-green-950/20 rounded-lg">
-                        <div className="text-2xl font-bold text-green-600 mb-1">
-                          {comparisonData.diff_data.statistics.additions}
-                        </div>
-                        <div className="text-sm text-green-700 dark:text-green-300">Additions</div>
+                  <div className="grid grid-cols-4 gap-4">
+                    <div className="text-center p-4 bg-green-50 dark:bg-green-950/20 rounded-lg">
+                      <div className="text-2xl font-bold text-green-600 mb-1">
+                        {comparisonData?.diff_data?.statistics?.additions || diffResults.filter(d => d.type === 'added').length}
                       </div>
-                      <div className="text-center p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg">
-                        <div className="text-2xl font-bold text-blue-600 mb-1">
-                          {comparisonData.diff_data.statistics.modifications}
-                        </div>
-                        <div className="text-sm text-blue-700 dark:text-blue-300">Modifications</div>
-                      </div>
-                      <div className="text-center p-4 bg-red-50 dark:bg-red-950/20 rounded-lg">
-                        <div className="text-2xl font-bold text-red-600 mb-1">
-                          {comparisonData.diff_data.statistics.deletions}
-                        </div>
-                        <div className="text-sm text-red-700 dark:text-red-300">Deletions</div>
-                      </div>
-                      <div className="text-center p-4 bg-primary/10 rounded-lg">
-                        <div className="text-2xl font-bold text-primary mb-1">
-                          {comparisonData.diff_data.statistics.total_changes}
-                        </div>
-                        <div className="text-sm text-primary">Total Changes</div>
-                      </div>
+                      <div className="text-sm text-green-700 dark:text-green-300">Additions</div>
                     </div>
-                  )}
+                    <div className="text-center p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg">
+                      <div className="text-2xl font-bold text-blue-600 mb-1">
+                        {comparisonData?.diff_data?.statistics?.modifications || diffResults.filter(d => d.type === 'modified').length}
+                      </div>
+                      <div className="text-sm text-blue-700 dark:text-blue-300">Modifications</div>
+                    </div>
+                    <div className="text-center p-4 bg-red-50 dark:bg-red-950/20 rounded-lg">
+                      <div className="text-2xl font-bold text-red-600 mb-1">
+                        {comparisonData?.diff_data?.statistics?.deletions || diffResults.filter(d => d.type === 'removed').length}
+                      </div>
+                      <div className="text-sm text-red-700 dark:text-red-300">Deletions</div>
+                    </div>
+                    <div className="text-center p-4 bg-primary/10 rounded-lg">
+                      <div className="text-2xl font-bold text-primary mb-1">
+                        {comparisonData?.diff_data?.statistics?.total_changes || diffResults.length}
+                      </div>
+                      <div className="text-sm text-primary">Total Changes</div>
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
 
@@ -234,9 +537,14 @@ function DiffContent() {
                     icon: <GitCompare className="w-4 h-4" />
                   },
                   {
+                    id: 'edit',
+                    label: 'Edit Resume',
+                    icon: <Edit className="w-4 h-4" />
+                  },
+                  {
                     id: 'latex',
-                    label: 'Resume Content',
-                    icon: <Eye className="w-4 h-4" />
+                    label: 'LaTeX Export',
+                    icon: <Download className="w-4 h-4" />
                   }
                 ]}
                 activeTab={activeTab}
@@ -244,11 +552,11 @@ function DiffContent() {
               />
 
               {/* Tab Content */}
-              {activeTab === 'sideBySide' && optimizedResumeText && (
+              {activeTab === 'sideBySide' && localOptimizedResumeText && (
                 <div className="mb-8">
                   <SideBySideViewer 
                     beforeContent={originalResumeText}
-                    afterContent={optimizedResumeText}
+                    afterContent={localOptimizedResumeText}
                     diffResults={diffResults}
                     beforeTitle="Original Resume"
                     afterTitle="Optimized Resume"
@@ -267,27 +575,146 @@ function DiffContent() {
                 </div>
               )}
 
-              {activeTab === 'latex' && optimizedResumeText && (
+              {activeTab === 'edit' && (
                 <Card className="mb-8">
                   <CardHeader>
-                    <CardTitle>Optimized Resume Content</CardTitle>
+                    <CardTitle className="flex items-center justify-between">
+                      <span>Edit Your Resume</span>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          onClick={handleEditToggle}
+                          variant={isEditing ? "default" : "outline"}
+                          size="sm"
+                          className="flex items-center gap-2"
+                        >
+                          {isEditing ? <Save className="w-4 h-4" /> : <Edit className="w-4 h-4" />}
+                          {isEditing ? 'Save Changes' : 'Edit Resume'}
+                        </Button>
+                      </div>
+                    </CardTitle>
                     <CardDescription>
-                      The content of your optimized resume
+                      {isEditing 
+                        ? 'Make your final edits to the resume text. Click "Save Changes" when done.'
+                        : 'Your optimized resume text. Click "Edit Resume" to make changes.'
+                      }
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="relative">
-                      <pre className="bg-muted p-4 rounded-lg overflow-auto text-sm font-mono max-h-96 whitespace-pre-wrap">
-                        <code>{optimizedResumeText}</code>
-                      </pre>
-                      <Button
-                        size="sm"
-                        className="absolute top-2 right-2"
-                        onClick={() => navigator.clipboard.writeText(optimizedResumeText)}
-                      >
-                        Copy
-                      </Button>
-                    </div>
+                    {isEditing ? (
+                      <Textarea
+                        value={editedResumeText}
+                        onChange={(e) => setEditedResumeText(e.target.value)}
+                        className="min-h-[400px] font-mono text-sm resize-y"
+                        placeholder="Edit your resume text here..."
+                      />
+                    ) : (
+                      <div className="bg-muted p-4 rounded-lg border min-h-[400px] overflow-auto">
+                        <div className="whitespace-pre-wrap text-sm leading-relaxed">
+                          {editedResumeText || localOptimizedResumeText}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {!isEditing && (
+                      <div className="mt-4 flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => navigator.clipboard.writeText(editedResumeText || localOptimizedResumeText)}
+                        >
+                          Copy Text
+                        </Button>
+                        <span className="text-sm text-muted-foreground">
+                          {(editedResumeText || localOptimizedResumeText).length} characters
+                        </span>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+
+              {activeTab === 'latex' && (
+                <Card className="mb-8">
+                  <CardHeader>
+                    <CardTitle className="flex items-center justify-between">
+                      <span>LaTeX Export</span>
+                      <div className="flex items-center gap-2">
+                        <Select value={latexStyle} onValueChange={setLatexStyle}>
+                          <SelectTrigger className="w-32">
+                            <SelectValue placeholder="Style" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="modern">Modern</SelectItem>
+                            <SelectItem value="classic">Classic</SelectItem>
+                            <SelectItem value="minimal">Minimal</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <Button
+                          onClick={handleGenerateLatex}
+                          disabled={isGeneratingLatex || (!editedResumeText && !localOptimizedResumeText)}
+                          className="flex items-center gap-2"
+                        >
+                          {isGeneratingLatex ? (
+                            <>
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                              Generating...
+                            </>
+                          ) : (
+                            <>
+                              <Download className="w-4 h-4" />
+                              Generate LaTeX
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </CardTitle>
+                    <CardDescription>
+                      Generate a professionally formatted LaTeX version of your resume. 
+                      {editedResumeText && editedResumeText !== localOptimizedResumeText 
+                        ? ' Using your edited version.' 
+                        : ' Using the optimized version.'
+                      }
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {generatedLatex ? (
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <h3 className="font-medium">Generated LaTeX Code</h3>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => navigator.clipboard.writeText(generatedLatex)}
+                            >
+                              Copy LaTeX
+                            </Button>
+                            <Button
+                              size="sm"
+                              onClick={handleGenerateLatex}
+                              className="flex items-center gap-1"
+                            >
+                              <Download className="w-3 h-3" />
+                              Regenerate
+                            </Button>
+                          </div>
+                        </div>
+                        <div className="bg-muted p-4 rounded-lg overflow-auto max-h-96 border">
+                          <pre className="text-sm font-mono whitespace-pre-wrap">
+                            {generatedLatex}
+                          </pre>
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          LaTeX code generated with <strong>{latexStyle}</strong> style • {generatedLatex.length} characters
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-center py-8 text-muted-foreground">
+                        <Download className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                        <p>Click &ldquo;Generate LaTeX&rdquo; to create a professionally formatted version of your resume.</p>
+                        <p className="text-sm mt-2">Choose your preferred style and we&apos;ll generate the LaTeX code for you.</p>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               )}

@@ -11,6 +11,17 @@ import { apiClient } from '@/lib/api';
 
 export default function AnalyzePage() {
   const router = useRouter();
+
+  useEffect(() => {
+    // Redirect to the new unified flow
+    router.replace('/job-analysis');
+  }, [router]);
+
+  return null;
+}
+
+function OldAnalyzePage() {
+  const router = useRouter();
   const { 
     jobDescription, 
     resumeText, 
@@ -44,7 +55,7 @@ export default function AnalyzePage() {
     }),
     onSuccess: (data) => {
       // After starting the comparison, poll for the results
-      pollForComparisonResults(data.session_id);
+      pollForComparisonResults(data.id);
     },
     onError: (error) => {
       console.error('Failed to get optimization suggestions:', error);

@@ -22,7 +22,11 @@ interface UploadResumeServerResponse {
   size_bytes: number;
 }
 
-export function ResumeUploader() {
+interface ResumeUploaderProps {
+  onUploadComplete?: () => void;
+}
+
+export function ResumeUploader({ onUploadComplete }: ResumeUploaderProps = {}) {
   const { resumeFile, setResumeFile, setResumeText, setResumeId } = useAppStore();
   const [uploadedResume, setUploadedResume] = useState<UploadedResume | null>(null);
 
@@ -41,6 +45,11 @@ export function ResumeUploader() {
       if (data.is_parsed) {
         // Resume already parsed, we'd get text another way
         // For now, keeping the old text extraction for compatibility
+      }
+      
+      // Call the completion callback if provided
+      if (onUploadComplete) {
+        onUploadComplete();
       }
     },
     onError: (error) => {
@@ -143,13 +152,13 @@ export function ResumeUploader() {
             </div>
 
             {uploadMutation.isPending && (
-              <div className="text-sm text-info">
+              <div className="text-sm text-blue-600">
                 Uploading resume...
               </div>
             )}
 
             {uploadMutation.isError && (
-              <div className="text-sm text-destructive">
+              <div className="text-sm text-red-600">
                 <p className="font-medium">Failed to upload resume</p>
                 <p className="mt-1">
                   {uploadMutation.error?.details || 
@@ -160,7 +169,7 @@ export function ResumeUploader() {
             )}
 
             {uploadedResume && (
-              <div className="text-sm text-success">
+              <div className="text-sm text-green-600">
                 ✓ Resume uploaded successfully ({Math.round(uploadedResume.size_bytes / 1024)} KB)
                 {uploadedResume.is_parsed && (
                   <span> - Ready for analysis</span>

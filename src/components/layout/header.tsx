@@ -23,8 +23,11 @@ export function Header() {
   };
 
   const handleHome = () => {
-    // Auth disabled for testing - always go to dashboard
-    router.push('/dashboard');
+    if (isAuthenticated) {
+      router.push('/dashboard');
+    } else {
+      router.push('/');
+    }
   };
 
   return (
@@ -42,43 +45,69 @@ export function Header() {
             <span className="text-xl font-bold">Resum8</span>
           </div>
 
-          {/* Navigation - Auth disabled for testing */}
+          {/* Navigation */}
           <div className="flex items-center gap-4">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="flex items-center gap-2 h-auto p-2">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
-                      <User className="w-4 h-4 text-white" />
+            {isAuthenticated && user ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" className="flex items-center gap-2 h-auto p-2">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
+                        {user.firstName && user.lastName ? (
+                          <span className="text-white text-sm font-semibold">
+                            {user.firstName.charAt(0)}{user.lastName.charAt(0)}
+                          </span>
+                        ) : (
+                          <User className="w-4 h-4 text-white" />
+                        )}
+                      </div>
+                      <div className="hidden sm:block text-left">
+                        <p className="text-sm font-medium">
+                          {user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : user.email.split('@')[0]}
+                        </p>
+                        <p className="text-xs text-muted-foreground">{user.email}</p>
+                      </div>
+                      <ChevronDown className="w-4 h-4 text-muted-foreground" />
                     </div>
-                    <div className="hidden sm:block text-left">
-                      <p className="text-sm font-medium">Test User</p>
-                      <p className="text-xs text-muted-foreground">test@example.com</p>
-                    </div>
-                    <ChevronDown className="w-4 h-4 text-muted-foreground" />
-                  </div>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem 
+                    onClick={() => router.push('/profile')}
+                    className="cursor-pointer"
+                  >
+                    <Settings className="mr-2 h-4 w-4" />
+                    Profile Settings
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem 
+                    onClick={handleLogout}
+                    className="cursor-pointer text-red-600 focus:text-red-600"
+                  >
+                    <LogOut className="mr-2 h-4 w-4" />
+                    Logout
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => router.push('/login')}
+                >
+                  Log In
                 </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuLabel>My Account (Testing Mode)</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem 
-                  onClick={() => router.push('/profile')}
-                  className="cursor-pointer"
+                <Button
+                  size="sm"
+                  onClick={() => router.push('/signup')}
                 >
-                  <Settings className="mr-2 h-4 w-4" />
-                  Profile Settings
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem 
-                  onClick={() => console.log('Logout disabled for testing')}
-                  className="cursor-pointer text-muted-foreground"
-                >
-                  <LogOut className="mr-2 h-4 w-4" />
-                  Logout (Disabled)
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+                  Sign Up
+                </Button>
+              </div>
+            )}
           </div>
         </div>
       </div>

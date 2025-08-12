@@ -45,10 +45,10 @@ export default function ResumeLibraryPage() {
   const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'score'>('newest');
 
   useEffect(() => {
-    // Auth disabled for testing - skip redirect
-    // if (!isLoading && !isAuthenticated) {
-    //   router.push('/login');
-    // }
+    
+    if (!isLoading && !isAuthenticated) {
+      router.push('/login');
+    }
   }, [isAuthenticated, isLoading, router]);
 
   // Mock data for resumes

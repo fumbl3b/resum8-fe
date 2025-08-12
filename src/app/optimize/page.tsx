@@ -36,185 +36,175 @@ interface Improvement {
 export default function OptimizePage() {
   const { isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
-  const { selectedSuggestions, toggleSuggestion, resumeId, jobAnalysis, jobDescription } = useAppStore();
+  const { selectedSuggestions, toggleSuggestion, resumeId, jobAnalysis, jobDescription, analysisResults, comparisonSessionId, resumeText } = useAppStore();
   const [improvements, setImprovements] = useState<Improvement[]>([]);
   const [selectedFilter, setSelectedFilter] = useState<'all' | 'high' | 'medium' | 'low'>('all');
   const [selectedCategory, setSelectedCategory] = useState<'all' | 'content' | 'keywords' | 'formatting' | 'structure'>('all');
-  const [comparisonSessionId, setComparisonSessionId] = useState<number | null>(null);
   const [isLoadingImprovements, setIsLoadingImprovements] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    // Auth disabled for testing - skip redirect
-    // if (!isLoading && !isAuthenticated) {
-    //   router.push('/login');
-    // }
+    if (!isLoading && !isAuthenticated) {
+      router.push('/login');
+    }
   }, [isAuthenticated, isLoading, router]);
 
-  // Start comparison session to get improvements
+  // Redirect if missing required data
   useEffect(() => {
-    // Convert API improvements to UI format
-    const convertApiImprovements = (apiImprovements: {
-      high_impact?: Array<{
-        id: string;
-        category: string;
-        description: string;
-        original_text?: string;
-        improved_text?: string;
-        impact_score: number;
-      }>;
-      medium_impact?: Array<{
-        id: string;
-        category: string;
-        description: string;
-        original_text?: string;
-        improved_text?: string;
-        impact_score: number;
-      }>;
-      low_impact?: Array<{
-        id: string;
-        category: string;
-        description: string;
-        original_text?: string;
-        improved_text?: string;
-        impact_score: number;
-      }>;
-    }): Improvement[] => {
-      const improvements: Improvement[] = [];
-      let idCounter = 1;
-
-      // Convert high impact improvements
-      if (apiImprovements.high_impact) {
-        apiImprovements.high_impact.forEach((item) => {
-          improvements.push({
-            id: (idCounter++).toString(),
-            title: item.category || 'High Impact Improvement',
-            description: item.description,
-            impact: 'high',
-            category: getCategoryFromDescription(item.description),
-            originalText: item.original_text,
-            suggestedText: item.improved_text,
-            selected: false
-          });
-        });
-      }
-
-      // Convert medium impact improvements
-      if (apiImprovements.medium_impact) {
-        apiImprovements.medium_impact.forEach((item) => {
-          improvements.push({
-            id: (idCounter++).toString(),
-            title: item.category || 'Medium Impact Improvement',
-            description: item.description,
-            impact: 'medium',
-            category: getCategoryFromDescription(item.description),
-            originalText: item.original_text,
-            suggestedText: item.improved_text,
-            selected: false
-          });
-        });
-      }
-
-      // Convert low impact improvements
-      if (apiImprovements.low_impact) {
-        apiImprovements.low_impact.forEach((item) => {
-          improvements.push({
-            id: (idCounter++).toString(),
-            title: item.category || 'Low Impact Improvement',
-            description: item.description,
-            impact: 'low',
-            category: getCategoryFromDescription(item.description),
-            originalText: item.original_text,
-            suggestedText: item.improved_text,
-            selected: false
-          });
-        });
-      }
-
-      return improvements;
-    };
-
-    const initializeComparisonSession = async () => {
+    if (!isLoading && isAuthenticated) {
       if (!resumeId || !jobDescription) {
-        setError('Missing resume or job description data. Please go back and complete the analysis.');
+        router.push('/job-analysis');
+      }
+    }
+  }, [isAuthenticated, isLoading, resumeId, jobDescription, router]);
+
+  // Generate improvements from analysis results
+  useEffect(() => {
+    const generateImprovements = () => {
+      console.log('🔍 Checking analysis results:', analysisResults);
+      
+      if (!analysisResults) {
+        console.log('❌ No analysisResults found');
+        setError('No analysis data found. Please go back and complete the job analysis first.');
         return;
       }
 
-      if (comparisonSessionId) {
-        return; // Already have a session
+      if (!analysisResults.weaknesses) {
+        console.log('❌ No weaknesses found in analysis results');
+        console.log('Available keys in analysisResults:', Object.keys(analysisResults));
+        setError('No improvement suggestions found in analysis results. Please try running the job analysis again.');
+        return;
+      }
+
+      if (!Array.isArray(analysisResults.weaknesses) || analysisResults.weaknesses.length === 0) {
+        console.log('❌ Weaknesses is not an array or is empty:', analysisResults.weaknesses);
+        console.log('🔧 Attempting to generate fallback improvements...');
+        
+        // Try to generate fallback improvements based on other data
+        if (jobAnalysis) {
+          const fallbackImprovements: Improvement[] = [];
+          
+          // Generate improvement suggestions based on job analysis
+          if (jobAnalysis.required_skills && jobAnalysis.required_skills.length > 0) {
+            fallbackImprovements.push({
+              id: 'fallback-1',
+              title: 'Required Skills Optimization',
+              description: `Consider highlighting these required skills: ${jobAnalysis.required_skills.slice(0, 3).join(', ')}`,
+              impact: 'high',
+              category: 'keywords',
+              suggestedText: `Add these key skills to your resume: ${jobAnalysis.required_skills.slice(0, 3).join(', ')}`,
+              selected: false
+            });
+          }
+          
+          if (jobAnalysis.keywords && jobAnalysis.keywords.length > 0) {
+            fallbackImprovements.push({
+              id: 'fallback-2',
+              title: 'Keyword Integration',
+              description: `Incorporate these important keywords: ${jobAnalysis.keywords.slice(0, 5).join(', ')}`,
+              impact: 'medium',
+              category: 'keywords',
+              suggestedText: `Include these keywords throughout your resume: ${jobAnalysis.keywords.slice(0, 5).join(', ')}`,
+              selected: false
+            });
+          }
+          
+          if (jobAnalysis.preferred_skills && jobAnalysis.preferred_skills.length > 0) {
+            fallbackImprovements.push({
+              id: 'fallback-3',
+              title: 'Preferred Skills Enhancement',
+              description: `Consider adding these preferred skills if you have them: ${jobAnalysis.preferred_skills.slice(0, 3).join(', ')}`,
+              impact: 'medium',
+              category: 'content',
+              suggestedText: `Highlight any experience with: ${jobAnalysis.preferred_skills.slice(0, 3).join(', ')}`,
+              selected: false
+            });
+          }
+          
+          if (fallbackImprovements.length > 0) {
+            console.log('✅ Generated fallback improvements:', fallbackImprovements);
+            setImprovements(fallbackImprovements);
+            setIsLoadingImprovements(false);
+            return;
+          }
+        }
+        
+        setError('No improvement suggestions available. The job analysis may not have completed successfully. Please try running the analysis again.');
+        return;
       }
 
       setIsLoadingImprovements(true);
       setError('');
 
       try {
-        // Start comparison session
-        const startResponse = await apiClient.startComparison({
-          base_resume_id: resumeId,
-          job_description: jobDescription,
-          job_title: jobAnalysis?.benefits?.join(' ') || 'Target Position'
+        console.log('✅ Processing weaknesses:', analysisResults.weaknesses);
+        
+        // Convert analysis weaknesses to improvements - these now come from the comparison API
+        const convertedImprovements: Improvement[] = analysisResults.weaknesses.map((weakness, index) => {
+          console.log(`Processing weakness ${index}:`, weakness);
+          
+          // Ensure we have valid impact level
+          const impactLevel = ['high', 'medium', 'low'].includes(weakness.impact) ? weakness.impact : 'medium';
+          
+          // Use the original ID from backend if available, otherwise create one
+          const improvementId = weakness.id || `improvement-${index + 1}`;
+          
+          const improvement = {
+            id: improvementId,
+            title: weakness.category || 'General Improvement',
+            description: weakness.description || 'Improvement needed',
+            impact: impactLevel as 'high' | 'medium' | 'low',
+            category: getCategoryFromDescription(weakness.description || ''),
+            suggestedText: weakness.suggestion || weakness.description,
+            selected: false
+          };
+          
+          console.log(`Generated improvement ${index} with ID ${improvementId}:`, improvement);
+          return improvement;
         });
 
-        setComparisonSessionId(startResponse.session_id);
-
-        // Poll for completion
-        const pollForCompletion = async (sessionId: number) => {
-          let attempts = 0;
-          const maxAttempts = 30; // 30 attempts with 2-second intervals = 1 minute max
-
-          while (attempts < maxAttempts) {
-            try {
-              const sessionData = await apiClient.getComparisonSession(sessionId);
-
-              if (sessionData.status === 'DONE') {
-                if (sessionData.improvements) {
-                  const convertedImprovements = convertApiImprovements(sessionData.improvements);
-                  setImprovements(convertedImprovements);
-                }
-                break;
-              } else if (sessionData.status === 'ERROR') {
-                throw new Error('Comparison session failed');
-              }
-
-              await new Promise(resolve => setTimeout(resolve, 2000));
-              attempts++;
-            } catch (pollError) {
-              console.error('Error polling session:', pollError);
-              throw pollError;
-            }
-          }
-
-          if (attempts >= maxAttempts) {
-            throw new Error('Session timed out. Please try again.');
-          }
-        };
-
-        await pollForCompletion(startResponse.session_id);
-
+        console.log('✅ All improvements generated:', convertedImprovements);
+        setImprovements(convertedImprovements);
       } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'Failed to generate improvements. Please try again.';
-        setError(errorMessage);
-        console.error('Comparison session error:', err);
+        console.error('❌ Error generating improvements:', err);
+        setError('Failed to generate improvements from analysis data. Check console for details.');
       } finally {
         setIsLoadingImprovements(false);
       }
     };
 
     if (isAuthenticated && !isLoading) {
-      initializeComparisonSession();
+      generateImprovements();
     }
-  }, [isAuthenticated, isLoading, resumeId, jobDescription, jobAnalysis, comparisonSessionId]);
+  }, [isAuthenticated, isLoading, analysisResults]);
 
   // Helper function to categorize improvements based on description
   const getCategoryFromDescription = (description: string): 'content' | 'keywords' | 'formatting' | 'structure' => {
+    if (!description) return 'content';
+    
     const lowerDesc = description.toLowerCase();
-    if (lowerDesc.includes('keyword') || lowerDesc.includes('skill') || lowerDesc.includes('buzzword')) {
+    
+    // Keywords and skills
+    if (lowerDesc.includes('keyword') || lowerDesc.includes('skill') || lowerDesc.includes('buzzword') || 
+        lowerDesc.includes('technical') || lowerDesc.includes('technology') || lowerDesc.includes('programming')) {
       return 'keywords';
-    } else if (lowerDesc.includes('format') || lowerDesc.includes('bullet') || lowerDesc.includes('header')) {
+    }
+    
+    // Formatting and presentation
+    if (lowerDesc.includes('format') || lowerDesc.includes('bullet') || lowerDesc.includes('header') ||
+        lowerDesc.includes('font') || lowerDesc.includes('spacing') || lowerDesc.includes('layout') ||
+        lowerDesc.includes('alignment') || lowerDesc.includes('style')) {
       return 'formatting';
-    } else if (lowerDesc.includes('structure') || lowerDesc.includes('section') || lowerDesc.includes('order')) {
+    }
+    
+    // Structure and organization
+    if (lowerDesc.includes('structure') || lowerDesc.includes('section') || lowerDesc.includes('order') ||
+        lowerDesc.includes('organize') || lowerDesc.includes('arrange') || lowerDesc.includes('sequence') ||
+        lowerDesc.includes('position') || lowerDesc.includes('placement')) {
       return 'structure';
     }
+    
+    // Default to content for anything else
     return 'content';
   };
 
@@ -238,12 +228,143 @@ export default function OptimizePage() {
     );
   };
 
-  const handleApplySelected = () => {
-    const selectedIds = improvements.filter(imp => imp.selected).map(imp => imp.id);
-    if (selectedIds.length === 0 || !comparisonSessionId) return;
+  const handleApplySelected = async () => {
+    const selectedImprovements = improvements.filter(imp => imp.selected);
+    if (selectedImprovements.length === 0) {
+      setError('Please select at least one improvement to apply.');
+      return;
+    }
     
-    // Store the session ID for the diff page
-    router.push(`/diff?sessionId=${comparisonSessionId}`);
+    console.log('🚀 Applying selected improvements:', selectedImprovements);
+    
+    if (!comparisonSessionId) {
+      console.error('❌ No comparison session ID found');
+      setError('No comparison session found. Please go back and complete the job analysis.');
+      router.push('/job-analysis');
+      return;
+    }
+
+    if (!resumeId) {
+      console.error('❌ No resume ID found');
+      setError('No resume selected. Please go back to the resume selection.');
+      router.push('/resume-library');
+      return;
+    }
+    
+    // Verify we have valid improvement data
+    if (selectedImprovements.some(imp => !imp.id || !imp.title)) {
+      console.error('❌ Invalid improvement data detected');
+      setError('Invalid improvement data. Please refresh and try again.');
+      return;
+    }
+
+    setIsLoadingImprovements(true);
+    setError('');
+    
+    try {
+      // Get the improvement IDs - these should match the IDs from the comparison API
+      const selectedImprovementIds = selectedImprovements.map(imp => imp.id);
+      
+      console.log('📋 Applying improvements with session ID:', comparisonSessionId);
+      console.log('🔧 Selected improvement IDs:', selectedImprovementIds);
+      console.log('🎯 Selected improvements details:', selectedImprovements.map(imp => ({ 
+        id: imp.id, 
+        title: imp.title, 
+        hasBackendId: !!imp.id && !imp.id.startsWith('improvement-') 
+      })));
+      
+      // Validate session health before proceeding
+      const sessionValidation = await apiClient.validateComparisonSession(comparisonSessionId);
+      console.log('🔍 Session validation result:', sessionValidation);
+      
+      if (!sessionValidation.valid) {
+        throw new Error(`Session invalid: ${sessionValidation.message}`);
+      }
+      
+      if (sessionValidation.status === 'RUNNING') {
+        setError('Session is still processing. Please wait a moment and try again.');
+        return;
+      }
+      
+      if (sessionValidation.status === 'ERROR') {
+        throw new Error('Session processing failed. Please start over from job analysis.');
+      }
+      
+      // Log the request payload for debugging
+      console.log('📤 Request payload:', {
+        session_id: comparisonSessionId,
+        selected_improvements: selectedImprovementIds,
+        custom_instructions: 'Keep the professional tone and ensure ATS compatibility'
+      });
+
+      // Use the /improvements/apply endpoint with session-based improvements
+      const result = await apiClient.applySelectedImprovements(
+        comparisonSessionId,
+        selectedImprovementIds,
+        'Keep the professional tone and ensure ATS compatibility'
+      );
+      
+      console.log('✅ Improvements applied successfully:', result);
+      console.log('📝 Applied improvements count:', result.changes_count);
+      console.log('🆔 Applied improvement IDs:', result.applied_improvements);
+      
+      // Validate the result has the expected data
+      if (!result.improved_text) {
+        throw new Error('No improved text received from API');
+      }
+
+      if (result.changes_count === 0) {
+        console.warn('⚠️ No changes were applied');
+        setError('No changes were applied to your resume. Please try different improvements or contact support.');
+        return;
+      }
+      
+      // Store the improved text in the app store for the diff page
+      const { setOptimizedResumeText } = useAppStore.getState();
+      setOptimizedResumeText(result.improved_text);
+      
+      // Navigate to diff page to review changes
+      router.push('/diff');
+      
+    } catch (error) {
+      console.error('❌ Error applying improvements:', error);
+      
+      // Log detailed error information for debugging
+      if (error && typeof error === 'object') {
+        console.error('📊 Error details:', {
+          message: (error as any).message,
+          status: (error as any).status,
+          details: (error as any).details,
+          stack: (error as any).stack
+        });
+      }
+      
+      // Provide specific error messages based on error type
+      let errorMessage = 'Failed to apply improvements. Please try again.';
+      
+      if (error instanceof Error) {
+        console.error('📝 Error message:', error.message);
+        
+        if (error.message.includes('404')) {
+          errorMessage = 'Endpoint not found. The improvements/apply endpoint may not be available.';
+        } else if (error.message.includes('400')) {
+          errorMessage = 'Invalid request data. Please check the improvement IDs and try again.';
+        } else if (error.message.includes('401')) {
+          errorMessage = 'Authentication failed. Please log in again.';
+        } else if (error.message.includes('500')) {
+          errorMessage = 'Server error occurred. Please try again in a moment.';
+        } else {
+          errorMessage = `API Error: ${error.message}`;
+        }
+      } else {
+        console.error('📝 Non-Error object:', error);
+        errorMessage = 'Unknown error occurred. Please check the console for details.';
+      }
+      
+      setError(errorMessage);
+    } finally {
+      setIsLoadingImprovements(false);
+    }
   };
 
   const filteredImprovements = improvements.filter(imp => {
@@ -390,19 +511,49 @@ export default function OptimizePage() {
           <div className="flex items-center justify-between mb-8">
             <Button
               variant="outline"
-              onClick={() => router.push('/analyze-resume')}
+              onClick={() => router.push('/job-analysis')}
               className="flex items-center gap-2"
             >
               <ArrowLeft className="h-4 w-4" />
-              Back to Analysis
+              Back to Job Analysis
             </Button>
             <div className="flex items-center gap-2">
               <TrendingUp className="w-6 h-6 text-primary" />
               <h1 className="text-2xl font-bold text-foreground">
-                Optimize Resume
+                Optimization Suggestions
               </h1>
             </div>
             <div className="w-32" />
+          </div>
+
+          {/* Progress Indicator */}
+          <div className="mb-8">
+            <div className="flex items-center justify-between max-w-2xl mx-auto">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full bg-green-500 text-white flex items-center justify-center text-sm font-medium">✓</div>
+                <span className="text-sm font-medium text-foreground">Resume</span>
+              </div>
+              <div className="flex-1 h-px bg-muted mx-4"></div>
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full bg-green-500 text-white flex items-center justify-center text-sm font-medium">✓</div>
+                <span className="text-sm font-medium text-foreground">Job Analysis</span>
+              </div>
+              <div className="flex-1 h-px bg-muted mx-4"></div>
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center text-sm font-medium">3</div>
+                <span className="text-sm font-medium text-foreground">Optimize</span>
+              </div>
+              <div className="flex-1 h-px bg-muted mx-4"></div>
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full bg-muted text-muted-foreground flex items-center justify-center text-sm font-medium">4</div>
+                <span className="text-sm font-medium text-muted-foreground">Review</span>
+              </div>
+              <div className="flex-1 h-px bg-muted mx-4"></div>
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full bg-muted text-muted-foreground flex items-center justify-center text-sm font-medium">5</div>
+                <span className="text-sm font-medium text-muted-foreground">Download</span>
+              </div>
+            </div>
           </div>
 
           {/* Summary Card */}
@@ -519,19 +670,21 @@ export default function OptimizePage() {
                         {improvement.description}
                       </p>
                       
-                      {improvement.originalText && improvement.suggestedText && (
+                      {improvement.suggestedText && improvement.suggestedText !== improvement.description && (
                         <div className="space-y-2">
-                          <div className="p-3 bg-red-50 dark:bg-red-950/20 rounded border-l-4 border-red-500">
-                            <div className="text-xs font-medium text-red-700 dark:text-red-300 mb-1">
-                              BEFORE:
+                          {improvement.originalText && (
+                            <div className="p-3 bg-red-50 dark:bg-red-950/20 rounded border-l-4 border-red-500">
+                              <div className="text-xs font-medium text-red-700 dark:text-red-300 mb-1">
+                                CURRENT:
+                              </div>
+                              <div className="text-sm text-red-800 dark:text-red-200">
+                                {improvement.originalText}
+                              </div>
                             </div>
-                            <div className="text-sm text-red-800 dark:text-red-200">
-                              {improvement.originalText}
-                            </div>
-                          </div>
+                          )}
                           <div className="p-3 bg-green-50 dark:bg-green-950/20 rounded border-l-4 border-green-500">
                             <div className="text-xs font-medium text-green-700 dark:text-green-300 mb-1">
-                              AFTER:
+                              SUGGESTED IMPROVEMENT:
                             </div>
                             <div className="text-sm text-green-800 dark:text-green-200">
                               {improvement.suggestedText}

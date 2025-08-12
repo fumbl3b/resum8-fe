@@ -23,13 +23,11 @@ export default function DashboardPage() {
   const { isAuthenticated, user, isLoading } = useAuth();
   const router = useRouter();
 
-  // Auth disabled for testing - skip redirect
-  // useEffect(() => {
-  //   // Auth disabled for testing
-      // if (!isLoading && !isAuthenticated) {
-  //     router.push('/login');
-  //   }
-  // }, [isAuthenticated, isLoading, router]);
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      router.push('/login');
+    }
+  }, [isAuthenticated, isLoading, router]);
 
   if (isLoading) {
     return (
@@ -51,7 +49,7 @@ export default function DashboardPage() {
       title: 'Analyze Resume',
       description: 'Upload and analyze your resume for strengths and weaknesses',
       icon: FileText,
-      href: '/analyze-resume',
+      href: '/resume-select',
       color: 'bg-blue-500',
       completed: false
     },
@@ -59,7 +57,7 @@ export default function DashboardPage() {
       title: 'Job Application Flow', 
       description: 'Optimize your resume for a specific job posting',
       icon: Briefcase,
-      href: '/job-application',
+      href: '/resume-select',
       color: 'bg-purple-500',
       completed: false
     },
@@ -265,7 +263,7 @@ export default function DashboardPage() {
                 <Button 
                   size="lg" 
                   className="px-8 py-3"
-                  onClick={() => router.push('/upload')}
+                  onClick={() => router.push('/resume-select')}
                 >
                   Start New Optimization
                   <ArrowRight className="ml-2 h-5 w-5" />

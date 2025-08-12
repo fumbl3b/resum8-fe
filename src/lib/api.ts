@@ -114,13 +114,17 @@ interface ComparisonStartRequest {
 
 interface ComparisonStartResponse {
   session_id: number;
-  status: 'RUNNING';
+  status: 'DONE';
   steps: {
-    parse_base: { state: string };
-    analyze: { state: string };
-    suggest: { state: string };
+    parse_base: { state: 'DONE' };
+    analyze: { state: 'DONE' };
+    suggest: { state: 'DONE' };
+    rewrite: { state: 'PENDING' | 'DONE' };
   };
   message: string;
+  
+  // Include the actual response data as well for backward compatibility
+  id?: number; // Fallback field name
 }
 
 interface ComparisonSessionResponse {
@@ -135,6 +139,8 @@ interface ComparisonSessionResponse {
     suggest: { state: string; completed_at?: string };
     rewrite: { state: string; completed_at?: string };
   };
+  suggestions?: string; // Raw suggestions from OpenAI
+  analysis_results?: string; // Analysis of job description (keywords, benefits)
   improvements?: {
     high_impact: Array<{
       id: string;
@@ -166,7 +172,7 @@ interface ComparisonSessionResponse {
 }
 
 interface ComparisonDiffResponse {
-  session_id: number;
+  session_id: number; // Keep this as it's likely returned in diff endpoint
   diff_data: {
     changes: Array<{
       type: 'modification' | 'addition' | 'deletion';
@@ -260,38 +266,38 @@ class APIClient {
       }
     }
 
-    // Auth disabled for testing - skip token headers
-    // if (this.accessToken && !('Authorization' in normalizedHeaders)) {
-    //   normalizedHeaders['Authorization'] = `Bearer ${this.accessToken}`;
-    // }
+    // Add auth token if available and not already present
+    if (this.accessToken && !('Authorization' in normalizedHeaders)) {
+      normalizedHeaders['Authorization'] = `Bearer ${this.accessToken}`;
+    }
 
     const response = await fetch(url, {
       headers: normalizedHeaders,
       ...options,
     });
 
-    // Auth disabled for testing - skip token refresh logic
-    // if (response.status === 401 && this.refreshToken && endpoint !== '/auth/refresh') {
-    //   try {
-    //     await this.refreshAccessToken();
-    //     // Retry the request with new token
-    //     normalizedHeaders['Authorization'] = `Bearer ${this.accessToken}`;
-    //     const retryResponse = await fetch(url, {
-    //       ...options,
-    //       headers: normalizedHeaders,
-    //     });
+    // Handle token refresh on 401
+    if (response.status === 401 && this.refreshToken && endpoint !== '/auth/refresh') {
+      try {
+        await this.refreshAccessToken();
+        // Retry the request with new token
+        normalizedHeaders['Authorization'] = `Bearer ${this.accessToken}`;
+        const retryResponse = await fetch(url, {
+          ...options,
+          headers: normalizedHeaders,
+        });
         
-    //     if (!retryResponse.ok) {
-    //       throw new Error('Request failed after token refresh');
-    //     }
+        if (!retryResponse.ok) {
+          throw new Error('Request failed after token refresh');
+        }
         
-    //     return retryResponse.json();
-    //   } catch {
-    //     // Refresh failed, clear tokens and redirect to login
-    //     this.clearTokens();
-    //     throw new Error('Authentication failed');
-    //   }
-    // }
+        return retryResponse.json();
+      } catch {
+        // Refresh failed, clear tokens and redirect to login
+        this.clearTokens();
+        throw new Error('Authentication failed');
+      }
+    }
 
     if (!response.ok) {
       const error: APIError = {
@@ -447,8 +453,8 @@ class APIClient {
   }
 
   // Analysis endpoints
-  async analyzeResume(data: ResumeAnalysisRequest): Promise<{ analysis_id: number; status: string; message: string }> {
-    return this.request<{ analysis_id: number; status: string; message: string }>('/analyze/resume', {
+  async analyzeResume(data: ResumeAnalysisRequest): Promise<ResumeAnalysisResponse | { analysis_id: number; status: string; message: string }> {
+    return this.request<ResumeAnalysisResponse | { analysis_id: number; status: string; message: string }>('/analyze/resume', {
       method: 'POST',
       body: JSON.stringify(data),
     });
@@ -467,14 +473,60 @@ class APIClient {
 
   // Comparison endpoints
   async startComparison(data: ComparisonStartRequest): Promise<ComparisonStartResponse> {
-    return this.request<ComparisonStartResponse>('/compare/start', {
+    const response = await this.request<ComparisonStartResponse>('/compare/start', {
       method: 'POST',
       body: JSON.stringify(data),
     });
+    console.log('🔄 Comparison API response:', response);
+    return response;
   }
 
   async getComparisonSession(sessionId: number): Promise<ComparisonSessionResponse> {
     return this.request<ComparisonSessionResponse>(`/compare/${sessionId}`);
+  }
+
+  async validateComparisonSession(sessionId: number): Promise<{ valid: boolean; status: string; message?: string }> {
+    try {
+      const session = await this.getComparisonSession(sessionId);
+      
+      // Check if session is in a valid state
+      if (session.status === 'ERROR') {
+        return {
+          valid: false,
+          status: 'ERROR',
+          message: 'Session processing failed'
+        };
+      }
+      
+      if (session.status === 'RUNNING') {
+        return {
+          valid: true,
+          status: 'RUNNING',
+          message: 'Session is still processing'
+        };
+      }
+      
+      if (session.status === 'DONE') {
+        return {
+          valid: true,
+          status: 'DONE',
+          message: 'Session is ready'
+        };
+      }
+      
+      return {
+        valid: true,
+        status: session.status,
+        message: 'Session exists'
+      };
+      
+    } catch (error) {
+      return {
+        valid: false,
+        status: 'NOT_FOUND',
+        message: error instanceof Error ? error.message : 'Session not found'
+      };
+    }
   }
 
   async getComparisonDiff(sessionId: number): Promise<ComparisonDiffResponse> {
@@ -507,6 +559,85 @@ class APIClient {
     }
 
     return response.blob();
+  }
+
+  async generateLatex(sessionId: number, options: {
+    latex_style?: 'modern' | 'classic' | 'minimal';
+    custom_text?: string;
+  }): Promise<{
+    latex_content: string;
+    text_source: 'custom' | 'session';
+  }> {
+    console.log('🔗 Making request to /improvements/generate-latex with:', {
+      endpoint: '/improvements/generate-latex',
+      method: 'POST',
+      payload: {
+        session_id: sessionId,
+        latex_style: options.latex_style || 'modern',
+        custom_text: options.custom_text
+      }
+    });
+
+    const result = await this.request<{
+      latex_content: string;
+      text_source: 'custom' | 'session';
+    }>('/improvements/generate-latex', {
+      method: 'POST',
+      body: JSON.stringify({
+        session_id: sessionId,
+        latex_style: options.latex_style || 'modern',
+        custom_text: options.custom_text
+      }),
+    });
+
+    console.log('✅ LaTeX generation successful, text source:', result.text_source);
+    return result;
+  }
+
+  async getComparisonResumeText(sessionId: number): Promise<{
+    session_id: number;
+    original_text: string;
+    improved_text: string;
+    resume_title: string;
+  }> {
+    return this.request<{
+      session_id: number;
+      original_text: string;
+      improved_text: string;
+      resume_title: string;
+    }>(`/compare/${sessionId}/resume-text`);
+  }
+
+  async applySelectedImprovements(sessionId: number, selectedImprovements: string[], customInstructions?: string): Promise<{
+    improved_text: string;
+    applied_improvements: string[];
+    changes_count: number;
+  }> {
+    console.log('🔗 Making request to /improvements/apply with:', {
+      endpoint: '/improvements/apply',
+      method: 'POST',
+      payload: {
+        session_id: sessionId,
+        selected_improvements: selectedImprovements,
+        custom_instructions: customInstructions
+      }
+    });
+
+    const result = await this.request<{
+      improved_text: string;
+      applied_improvements: string[];
+      changes_count: number;
+    }>('/improvements/apply', {
+      method: 'POST',
+      body: JSON.stringify({
+        session_id: sessionId,
+        selected_improvements: selectedImprovements,
+        custom_instructions: customInstructions
+      }),
+    });
+
+    console.log('✅ /improvements/apply successful, received:', result);
+    return result;
   }
 
   // Document processing endpoints
