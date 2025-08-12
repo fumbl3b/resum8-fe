@@ -54,8 +54,12 @@ function OldAnalyzePage() {
       job_title: 'Job Title' // This is a placeholder, you might want to get this from the user
     }),
     onSuccess: (data) => {
+      if (typeof data.id === 'number') {
+        pollForComparisonResults(data.id);
+      } else {
+        console.error('Missing comparison session id');
+      }
       // After starting the comparison, poll for the results
-      pollForComparisonResults(data.id);
     },
     onError: (error) => {
       console.error('Failed to get optimization suggestions:', error);
