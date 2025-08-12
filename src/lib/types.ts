@@ -92,7 +92,7 @@ export interface AppState {
   resumeText: string; // Original resume text
   optimizedResumeText?: string; // Optimized resume text after improvements
   resumeId: number | null;
-  comparisonSessionId?: number; // Session ID for the comparison
+  comparisonSessionId?: number | null; // Session ID for the comparison
   jobAnalysis?: JobAnalysisResponse;
   analysisResults?: AnalysisResult;
   optimizationResults?: ResumeOptimizationResponse;

@@ -7,7 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { DiffViewer } from '@/components/ui/diff-viewer';
 import { SideBySideViewer } from '@/components/ui/side-by-side-viewer';
 import { TabNavigation } from '@/components/ui/tab-navigation';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+// Note: Using native select instead of UI library select component
 import { generateDiff, DiffResult } from '@/lib/diff-utils';
 
 // Clean up text content for better readability in diff view
@@ -117,16 +117,16 @@ function DiffContent() {
           session_id: comparisonSessionId || 0,
           diff_data: {
             changes: diff.map((d, index) => ({
-              type: d.type as 'modification' | 'addition' | 'deletion',
+              type: d.type === 'deletion' ? 'deletion' as const : d.type === 'addition' ? 'addition' as const : 'modification' as const,
               section: `Section ${index + 1}`,
-              line_number: (d.lineNumber.before || d.lineNumber.after || index + 1) as number,
+              line_number: d.lineNumber.before ?? d.lineNumber.after ?? index + 1,
               before: d.type === 'deletion' ? d.content : undefined,
               after: d.type === 'addition' ? d.content : undefined,
             })),
             statistics: {
               total_changes: diff.length,
               additions: diff.filter(d => d.type === 'addition').length,
-              modifications: 0, // We don't have a separate modification type in our diff
+              modifications: diff.filter(d => d.type === 'unchanged').length,
               deletions: diff.filter(d => d.type === 'deletion').length,
             }
           },
@@ -199,17 +199,17 @@ function DiffContent() {
           session_id: resumeData.session_id,
           diff_data: {
             changes: diff.map((d, index) => ({
-              type: d.type as 'modification' | 'addition' | 'deletion',
+              type: d.type === 'deletion' ? 'deletion' as const : d.type === 'addition' ? 'addition' as const : 'modification' as const,
               section: `Section ${index + 1}`,
-              line_number: d.lineNumber || index + 1,
-              before: d.type === 'removed' ? d.content : undefined,
-              after: d.type === 'added' ? d.content : undefined,
+              line_number: d.lineNumber.before ?? d.lineNumber.after ?? index + 1,
+              before: d.type === 'deletion' ? d.content : undefined,
+              after: d.type === 'addition' ? d.content : undefined,
             })),
             statistics: {
               total_changes: diff.length,
-              additions: diff.filter(d => d.type === 'added').length,
-              modifications: diff.filter(d => d.type === 'modified').length,
-              deletions: diff.filter(d => d.type === 'removed').length,
+              additions: diff.filter(d => d.type === 'addition').length,
+              modifications: diff.filter(d => d.type === 'unchanged').length,
+              deletions: diff.filter(d => d.type === 'deletion').length,
             }
           },
           editable_text: resumeData.improved_text
@@ -224,15 +224,14 @@ function DiffContent() {
           const diffData = await apiClient.getComparisonDiff(comparisonSessionId);
           console.log('📄 Received diff data:', diffData);
           
+          const originalText = diffData.editable_text.split('\n\n--- OPTIMIZED VERSION ---\n\n')[0] || 'Original resume text';
+          
           setComparisonData(diffData);
-          setOriginalResumeText(diffData.editable_text.split('\n\n--- OPTIMIZED VERSION ---\n\n')[0] || 'Original resume text');
+          setOriginalResumeText(originalText);
           setLocalOptimizedResumeText(diffData.editable_text);
           
           // Generate client-side diff for visualization
-          const diff = generateDiff(
-            diffData.editable_text.split('\n\n--- OPTIMIZED VERSION ---\n\n')[0] || '',
-            diffData.editable_text
-          );
+          const diff = generateDiff(originalText, diffData.editable_text);
           setDiffResults(diff);
           
         } catch (fallbackError) {
@@ -266,16 +265,16 @@ function DiffContent() {
               session_id: comparisonSessionId,
               diff_data: {
                 changes: diff.map((d, index) => ({
-                  type: d.type as 'modification' | 'addition' | 'deletion',
+                  type: d.type === 'deletion' ? 'deletion' as const : d.type === 'addition' ? 'addition' as const : 'modification' as const,
                   section: `Section ${index + 1}`,
-                  line_number: (d.lineNumber.before || d.lineNumber.after || index + 1) as number,
+                  line_number: d.lineNumber.before ?? d.lineNumber.after ?? index + 1,
                   before: d.type === 'deletion' ? d.content : undefined,
                   after: d.type === 'addition' ? d.content : undefined,
                 })),
                 statistics: {
                   total_changes: diff.length,
                   additions: diff.filter(d => d.type === 'addition').length,
-                  modifications: 0, // We don't have a separate modification type in our diff
+                  modifications: diff.filter(d => d.type === 'unchanged').length,
                   deletions: diff.filter(d => d.type === 'deletion').length,
                 }
               },
@@ -639,16 +638,15 @@ function DiffContent() {
                     <CardTitle className="flex items-center justify-between">
                       <span>LaTeX Export</span>
                       <div className="flex items-center gap-2">
-                        <Select value={latexStyle} onValueChange={setLatexStyle}>
-                          <SelectTrigger className="w-32">
-                            <SelectValue placeholder="Style" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="modern">Modern</SelectItem>
-                            <SelectItem value="classic">Classic</SelectItem>
-                            <SelectItem value="minimal">Minimal</SelectItem>
-                          </SelectContent>
-                        </Select>
+                        <select 
+                          value={latexStyle} 
+                          onChange={(e) => setLatexStyle(e.target.value as 'modern' | 'classic' | 'minimal')}
+                          className="w-32 px-3 py-2 text-sm border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                          <option value="modern">Modern</option>
+                          <option value="classic">Classic</option>
+                          <option value="minimal">Minimal</option>
+                        </select>
                         <Button
                           onClick={handleGenerateLatex}
                           disabled={isGeneratingLatex || (!editedResumeText && !localOptimizedResumeText)}

@@ -73,7 +73,13 @@ export default function JobAnalysisPage() {
       console.log('📋 Session ID extracted:', sessionId);
       
       // Store the session ID for use in other components
-      setComparisonSessionId(sessionId);
+      if (sessionId) {
+        setComparisonSessionId(sessionId);
+      } else {
+        console.error('❌ No session ID found in response');
+        setError('Failed to get session ID from comparison start');
+        return;
+      }
       
       // If status is already DONE (synchronous processing), get results immediately
       if (data.status === 'DONE') {
@@ -204,19 +210,19 @@ export default function JobAnalysisPage() {
         } else if (parsedSuggestions.high_impact || parsedSuggestions.medium_impact || parsedSuggestions.low_impact) {
           // Handle the old format if it's still being returned
           weaknesses = [
-            ...(parsedSuggestions.high_impact || []).map(imp => ({
+            ...(parsedSuggestions.high_impact || []).map((imp: any) => ({
               category: imp.category,
               impact: 'high' as const,
               description: imp.description,
               suggestion: imp.improved_text || imp.description
             })),
-            ...(parsedSuggestions.medium_impact || []).map(imp => ({
+            ...(parsedSuggestions.medium_impact || []).map((imp: any) => ({
               category: imp.category,
               impact: 'medium' as const,
               description: imp.description,
               suggestion: imp.improved_text || imp.description
             })),
-            ...(parsedSuggestions.low_impact || []).map(imp => ({
+            ...(parsedSuggestions.low_impact || []).map((imp: any) => ({
               category: imp.category,
               impact: 'low' as const,
               description: imp.description,
@@ -231,8 +237,8 @@ export default function JobAnalysisPage() {
       
       // Fallback: create basic improvements from raw text
       if (sessionData.suggestions) {
-        const lines = sessionData.suggestions.split('\n').filter(line => line.trim());
-        weaknesses = lines.slice(0, 10).map((line, index) => ({
+        const lines = sessionData.suggestions.split('\n').filter((line: string) => line.trim());
+        weaknesses = lines.slice(0, 10).map((line: string, index: number) => ({
           category: 'Content Improvement',
           impact: index < 3 ? 'high' as const : index < 6 ? 'medium' as const : 'low' as const,
           description: line.trim(),
