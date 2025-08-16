@@ -33,7 +33,10 @@ export default function DownloadPage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isLoadingText, setIsLoadingText] = useState(true);
   const [error, setError] = useState('');
-  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [sessionStatus, setSessionStatus] = useState<any>(null);
+  const [isPdfReady, setIsPdfReady] = useState(false);
+  const [savedArtifactId, setSavedArtifactId] = useState<number | null>(null);
+  const [isDownloading, setIsDownloading] = useState(false);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -41,9 +44,9 @@ export default function DownloadPage() {
     }
   }, [isAuthenticated, isLoading, router]);
 
-  // Load the optimized text
+  // Load the optimized text and session status
   useEffect(() => {
-    const loadOptimizedText = async () => {
+    const loadDataAndStatus = async () => {
       setIsLoadingText(true);
       setError('');
 
@@ -52,23 +55,30 @@ export default function DownloadPage() {
         if (optimizedResumeText) {
           console.log('✅ Using optimized text from app store');
           setFinalOptimizedText(optimizedResumeText);
-          setIsLoadingText(false);
-          return;
         }
 
-        // If no optimized text but we have a session, fetch it
+        // Always check session status if we have a session ID
         if (comparisonSessionId) {
-          console.log('📥 Fetching optimized text from session:', comparisonSessionId);
-          const resumeData = await apiClient.getComparisonResumeText(comparisonSessionId);
-          console.log('📄 Received resume data:', resumeData);
+          console.log('📊 Checking session status:', comparisonSessionId);
+          const sessionData = await apiClient.getComparisonSession(comparisonSessionId);
+          console.log('📋 Session data:', sessionData);
           
-          if (resumeData.improved_text) {
-            setFinalOptimizedText(resumeData.improved_text);
-            // Update the app store with the optimized text
-            const { setOptimizedResumeText } = useAppStore.getState();
-            setOptimizedResumeText(resumeData.improved_text);
-          } else {
-            setError('No optimized text found in the session');
+          setSessionStatus(sessionData);
+          setIsPdfReady(sessionData.pdf_ready || false);
+          
+          // Get the latest text from the session if not already available
+          if (!optimizedResumeText) {
+            console.log('📥 Fetching optimized text from session');
+            const resumeData = await apiClient.getComparisonResumeText(comparisonSessionId);
+            
+            if (resumeData.improved_text) {
+              setFinalOptimizedText(resumeData.improved_text);
+              // Update the app store with the optimized text
+              const { setOptimizedResumeText } = useAppStore.getState();
+              setOptimizedResumeText(resumeData.improved_text);
+            } else {
+              setError('No optimized text found in the session');
+            }
           }
         } else if (resumeText) {
           // Fallback to original text if no optimization was done
@@ -78,114 +88,115 @@ export default function DownloadPage() {
           setError('No resume text available');
         }
       } catch (error) {
-        console.error('❌ Error loading optimized text:', error);
-        setError('Failed to load optimized resume text');
+        console.error('❌ Error loading data and status:', error);
+        setError('Failed to load resume data');
       } finally {
         setIsLoadingText(false);
       }
     };
 
     if (isAuthenticated) {
-      loadOptimizedText();
+      loadDataAndStatus();
     }
   }, [isAuthenticated, optimizedResumeText, comparisonSessionId, resumeText]);
 
+  // Check for saved artifacts
+  useEffect(() => {
+    const checkForArtifacts = async () => {
+      if (!isAuthenticated || !comparisonSessionId) return;
+
+      try {
+        console.log('🔍 Checking for saved artifacts...');
+        const artifacts = await apiClient.getArtifacts();
+        
+        // Find artifact associated with current session
+        const sessionArtifact = artifacts.artifacts.find(artifact => 
+          artifact.session_id === comparisonSessionId
+        );
+        
+        if (sessionArtifact) {
+          console.log('✅ Found saved artifact:', sessionArtifact.id);
+          setSavedArtifactId(sessionArtifact.id);
+          // If artifact has PDF, mark as ready
+          if (sessionArtifact.has_pdf) {
+            setIsPdfReady(true);
+          }
+        }
+      } catch (error) {
+        console.warn('⚠️ Could not check for artifacts:', error);
+        // Don't set error state as this is not critical
+      }
+    };
+
+    checkForArtifacts();
+  }, [isAuthenticated, comparisonSessionId]);
+
   const handleDownloadPDF = async () => {
-    if (!finalOptimizedText) {
-      setError('No resume text available for PDF generation');
+    if (!comparisonSessionId) {
+      setError('No comparison session available for PDF download');
       return;
     }
 
-    setIsGenerating(true);
+    setIsDownloading(true);
     setError('');
 
     try {
-      console.log('🔧 Generating PDF from optimized text...');
-      
-      // First generate LaTeX from the optimized text
-      if (comparisonSessionId) {
-        const latexResult = await apiClient.generateLatex(comparisonSessionId, {
-          latex_style: 'modern',
-          custom_text: finalOptimizedText
-        });
+      let pdfBlob: Blob;
 
-        console.log('✅ LaTeX generated, converting to PDF...');
-        
-        // Convert LaTeX to PDF
-        const pdfResult = await apiClient.convertToLatex(latexResult.latex_content, 'modern');
-        
-        console.log('✅ PDF result received:', pdfResult);
-        
-        // Check if we got base64 data (which is what the API actually returns)
-        if (pdfResult.pdf_content) {
-          console.log('📄 PDF content received as base64, decoding...');
-          
-          // Handle base64 PDF content
-          const binaryString = atob(pdfResult.pdf_content);
-          const bytes = new Uint8Array(binaryString.length);
-          for (let i = 0; i < binaryString.length; i++) {
-            bytes[i] = binaryString.charCodeAt(i);
-          }
-          
-          const blob = new Blob([bytes], { type: 'application/pdf' });
-          console.log('📄 PDF blob created from base64:', blob.size, 'bytes');
-          
-          // Create download link
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = 'optimized-resume.pdf';
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          URL.revokeObjectURL(url);
-          
-        } else if (pdfResult.pdf_url) {
-          console.log('📥 Downloading PDF from URL:', pdfResult.pdf_url);
-          
-          // Try to fetch the PDF from the URL (fallback)
-          const response = await fetch(pdfResult.pdf_url);
-          
-          if (!response.ok) {
-            throw new Error(`Failed to fetch PDF: ${response.status} ${response.statusText}`);
-          }
-          
-          const blob = await response.blob();
-          console.log('📄 PDF blob received:', blob.size, 'bytes, type:', blob.type);
-          
-          // Create download link
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = 'optimized-resume.pdf';
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          URL.revokeObjectURL(url);
-          
-        } else {
-          console.error('❌ Unexpected PDF result format:', pdfResult);
-          throw new Error('Unexpected response format from PDF conversion');
+      // Try to download from saved artifact first
+      if (savedArtifactId) {
+        console.log('📥 Downloading PDF from saved artifact:', savedArtifactId);
+        try {
+          pdfBlob = await apiClient.downloadArtifact(savedArtifactId);
+          console.log('📄 PDF blob received from artifact:', pdfBlob.size, 'bytes, type:', pdfBlob.type);
+        } catch (artifactError) {
+          console.warn('⚠️ Artifact download failed, falling back to session download:', artifactError);
+          // Fall back to session download
+          pdfBlob = await apiClient.downloadComparison(comparisonSessionId);
+          console.log('📄 PDF blob received from session:', pdfBlob.size, 'bytes, type:', pdfBlob.type);
         }
-        
       } else {
-        // Fallback: create a simple text-based PDF
-        console.log('⚠️ No session ID, creating simple text download');
-        const blob = new Blob([finalOptimizedText], { type: 'text/plain' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'optimized-resume.txt';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+        console.log('📥 Downloading PDF from session:', comparisonSessionId);
+        // Use the direct session download endpoint
+        pdfBlob = await apiClient.downloadComparison(comparisonSessionId);
+        console.log('📄 PDF blob received from session:', pdfBlob.size, 'bytes, type:', pdfBlob.type);
       }
+      
+      // Create download link
+      const url = URL.createObjectURL(pdfBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'optimized-resume.pdf';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
     } catch (error) {
-      console.error('❌ PDF generation failed:', error);
-      setError(`Failed to generate PDF: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error('❌ PDF download failed:', error);
+      setError(`Failed to download PDF: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      
+      // If direct download fails, try regenerating PDF first
+      if (error instanceof Error && error.message.includes('PDF not ready')) {
+        console.log('🔄 PDF not ready, attempting to regenerate...');
+        try {
+          // Trigger PDF regeneration by calling generate-latex endpoint
+          await apiClient.generateLatex(comparisonSessionId, {
+            latex_style: 'modern',
+            custom_text: finalOptimizedText
+          });
+          
+          // Wait a moment for PDF generation to complete
+          setTimeout(() => {
+            setError('PDF is being generated. Please try downloading again in a moment.');
+          }, 1000);
+        } catch (regenError) {
+          console.error('❌ PDF regeneration also failed:', regenError);
+          setError('Failed to generate PDF. Please try again or download as text.');
+        }
+      }
     } finally {
-      setIsGenerating(false);
+      setIsDownloading(false);
     }
   };
 
@@ -361,29 +372,11 @@ export default function DownloadPage() {
               </div>
               <div className="flex-1 h-px bg-muted mx-4"></div>
               <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center text-sm font-medium">5</div>
+                <div className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center text-sm font-medium">4</div>
                 <span className="text-sm font-medium text-foreground">Download</span>
               </div>
             </div>
           </div>
-
-          {/* Success Message */}
-          <Card className="mb-8">
-            <CardContent className="text-center py-8">
-              <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
-              <h2 className="text-2xl font-bold text-foreground mb-2">
-                Resume Optimization Complete!
-              </h2>
-              <p className="text-muted-foreground mb-6">
-                Your resume has been successfully optimized for the target job. Choose your preferred download format below.
-              </p>
-              {jobDescription && (
-                <div className="text-sm text-muted-foreground">
-                  Optimized for: <span className="font-medium text-foreground">{jobDescription.substring(0, 100)}...</span>
-                </div>
-              )}
-            </CardContent>
-          </Card>
 
           {/* Resume Preview */}
           <Card className="mb-8">
@@ -393,17 +386,49 @@ export default function DownloadPage() {
                 Resume Preview
               </CardTitle>
               <CardDescription>
-                Preview your optimized resume before downloading
+                Your optimized resume {isPdfReady ? 'PDF preview' : 'content preview'}
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="bg-gray-50 dark:bg-gray-900 p-6 rounded-lg max-h-96 overflow-y-auto">
-                <pre className="text-sm whitespace-pre-wrap text-foreground">
-                  {finalOptimizedText}
-                </pre>
-              </div>
+              {isPdfReady && comparisonSessionId ? (
+                <div className="border rounded-lg overflow-hidden">
+                  <iframe
+                    src={`/api/comparison/${comparisonSessionId}/pdf`}
+                    className="w-full h-96 border-0"
+                    title="Resume PDF Preview"
+                  />
+                </div>
+              ) : (
+                <div className="bg-gray-50 dark:bg-gray-900 p-6 rounded-lg max-h-96 overflow-y-auto">
+                  {isGenerating ? (
+                    <div className="flex items-center justify-center py-12">
+                      <div className="text-center">
+                        <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-primary" />
+                        <p className="text-lg font-medium">Generating PDF preview...</p>
+                        <p className="text-sm text-muted-foreground">
+                          This may take a few moments
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <pre className="text-sm whitespace-pre-wrap text-foreground">
+                      {finalOptimizedText}
+                    </pre>
+                  )}
+                </div>
+              )}
               <div className="mt-4 text-sm text-muted-foreground">
-                {finalOptimizedText.length} characters • {finalOptimizedText.split('\n').length} lines
+                {isPdfReady && (
+                  <div className="inline-flex items-center gap-2 px-3 py-1 bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 text-sm rounded-full">
+                    <CheckCircle className="w-4 h-4" />
+                    PDF is ready for download
+                  </div>
+                )}
+                {!isPdfReady && (
+                  <span>
+                    {finalOptimizedText.length} characters • {finalOptimizedText.split('\n').length} lines
+                  </span>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -423,18 +448,18 @@ export default function DownloadPage() {
               <CardContent>
                 <Button 
                   onClick={handleDownloadPDF}
-                  disabled={isGenerating || !finalOptimizedText}
+                  disabled={isDownloading || !comparisonSessionId}
                   className="w-full flex items-center gap-2"
                 >
-                  {isGenerating ? (
+                  {isDownloading ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      Generating PDF...
+                      Downloading...
                     </>
                   ) : (
                     <>
                       <Download className="w-4 h-4" />
-                      Download PDF
+                      {savedArtifactId ? 'Download PDF (Saved)' : isPdfReady ? 'Download PDF (Ready)' : 'Download PDF'}
                     </>
                   )}
                 </Button>
@@ -464,47 +489,6 @@ export default function DownloadPage() {
               </CardContent>
             </Card>
           </div>
-
-          {/* Next Steps */}
-          <Card>
-            <CardHeader>
-              <CardTitle>What's Next?</CardTitle>
-              <CardDescription>
-                Your resume is ready! Here are some suggestions for your job application process.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="flex items-start gap-3">
-                  <div className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center text-sm font-medium mt-1">1</div>
-                  <div>
-                    <p className="font-medium text-foreground">Review and Customize</p>
-                    <p className="text-sm text-muted-foreground">Make any final adjustments to match your personal style and preferences.</p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3">
-                  <div className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center text-sm font-medium mt-1">2</div>
-                  <div>
-                    <p className="font-medium text-foreground">Tailor for Each Application</p>
-                    <p className="text-sm text-muted-foreground">Consider creating variations for different types of positions.</p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3">
-                  <div className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center text-sm font-medium mt-1">3</div>
-                  <div>
-                    <p className="font-medium text-foreground">Track Your Applications</p>
-                    <p className="text-sm text-muted-foreground">Keep records of where you've applied and follow up appropriately.</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex justify-center mt-6">
-                <Button onClick={handleStartNew} variant="outline">
-                  Optimize Another Resume
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
         </div>
       </div>
     </div>

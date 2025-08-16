@@ -8,6 +8,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
 import { useAppStore } from '@/stores/app-store';
 import { apiClient } from '@/lib/api';
+import { useSessionPolling } from '@/hooks/useSessionPolling';
 import { SessionStatus } from '@/components/ui/session-status';
 import { 
   ArrowLeft, 
@@ -42,7 +43,7 @@ export default function OptimizePage() {
   const [improvements, setImprovements] = useState<Improvement[]>([]);
   const [selectedFilter, setSelectedFilter] = useState<'all' | 'high' | 'medium' | 'low'>('all');
   const [selectedCategory, setSelectedCategory] = useState<'all' | 'content' | 'keywords' | 'formatting' | 'structure'>('all');
-  const [isLoadingImprovements, setIsLoadingImprovements] = useState(true);
+  const [isLoadingImprovements, setIsLoadingImprovements] = useState(false);
   const [isApplying, setIsApplying] = useState(false);
   const [error, setError] = useState('');
   const [sessionData, setSessionData] = useState<any>(null);
@@ -63,50 +64,166 @@ export default function OptimizePage() {
     }
   }, [isAuthenticated, isLoading, resumeId, jobDescription, router]);
 
-  // Load improvements from session data on page load - no polling needed
-  useEffect(() => {
-    const loadImprovementsFromSession = async () => {
-      if (!comparisonSessionId || improvementsLoaded) {
+  // Use session polling hook to keep session data updated
+  useSessionPolling({
+    sessionId: comparisonSessionId || null,
+    onUpdate: (session) => {
+      setSessionData(session);
+      console.log('🔍 Optimize page session update:', session);
+      
+      // Update improvements from session data - only once to avoid overwriting user selections
+      if (session.improvements && !improvementsLoaded) {
+        console.log('✅ Found improvements in session (loading for first time):', session.improvements);
+        const sessionImprovements = [
+          ...(session.improvements.high_impact || []),
+          ...(session.improvements.medium_impact || []),
+          ...(session.improvements.low_impact || [])
+        ].map(imp => ({
+          ...imp,
+          title: imp.description,
+          selected: selectedSuggestions.includes(imp.id),
+          impact: imp.impact_score > 7 ? 'high' : imp.impact_score > 4 ? 'medium' : 'low'
+        }));
+        setImprovements(sessionImprovements);
+        setImprovementsLoaded(true);
         setIsLoadingImprovements(false);
-        if (!comparisonSessionId) {
-          setError('No session found. Please go back and complete the job analysis.');
-        }
+      } else if (session.improvements && improvementsLoaded) {
+        console.log('✅ Session data updated but improvements already loaded - preserving user selections');
+      } else {
+        console.log('❌ No improvements found in session data');
+      }
+    },
+    shouldPoll: (session) => {
+      // Poll once to get session data if we don't have improvements loaded yet
+      return !improvementsLoaded;
+    }
+  });
+
+  // Generate improvements from analysis results - only as fallback if session data fails
+  useEffect(() => {
+    // Don't run this if we're trying to load from session data or already loaded
+    if (improvementsLoaded || comparisonSessionId) {
+      console.log('⏭️ Skipping fallback - session data available or improvements already loaded');
+      return;
+    }
+    
+    const generateImprovements = () => {
+      console.log('🔍 Checking analysis results as fallback:', analysisResults);
+      
+      if (!analysisResults) {
+        console.log('❌ No analysisResults found');
+        setError('No analysis data found. Please go back and complete the job analysis first.');
         return;
       }
 
-      try {
-        console.log('🔍 Loading improvements from session:', comparisonSessionId);
-        const session = await apiClient.getComparisonSession(comparisonSessionId);
-        console.log('✅ Session data loaded:', session);
+      if (!analysisResults.weaknesses) {
+        console.log('❌ No weaknesses found in analysis results');
+        console.log('Available keys in analysisResults:', Object.keys(analysisResults));
+        setError('No improvement suggestions found in analysis results. Please try running the job analysis again.');
+        return;
+      }
+
+      if (!Array.isArray(analysisResults.weaknesses) || analysisResults.weaknesses.length === 0) {
+        console.log('❌ Weaknesses is not an array or is empty:', analysisResults.weaknesses);
+        console.log('🔧 Attempting to generate fallback improvements...');
         
-        if (session.improvements) {
-          const sessionImprovements = [
-            ...(session.improvements.high_impact || []),
-            ...(session.improvements.medium_impact || []),
-            ...(session.improvements.low_impact || [])
-          ].map(imp => ({
-            ...imp,
-            title: imp.description,
-            selected: selectedSuggestions.includes(imp.id),
-            impact: (imp.impact_score > 7 ? 'high' : imp.impact_score > 4 ? 'medium' : 'low') as 'high' | 'medium' | 'low',
-            category: getCategoryFromDescription(imp.category || imp.description)
-          }));
-          setImprovements(sessionImprovements);
-          setImprovementsLoaded(true);
-        } else {
-          setError('No improvements found in session. Please go back and complete the job analysis.');
+        // Try to generate fallback improvements based on other data
+        if (jobAnalysis) {
+          const fallbackImprovements: Improvement[] = [];
+          
+          // Generate improvement suggestions based on job analysis
+          if (jobAnalysis.required_skills && jobAnalysis.required_skills.length > 0) {
+            fallbackImprovements.push({
+              id: 'fallback-1',
+              title: 'Required Skills Optimization',
+              description: `Consider highlighting these required skills: ${jobAnalysis.required_skills.slice(0, 3).join(', ')}`,
+              impact: 'high',
+              category: 'keywords',
+              suggestedText: `Add these key skills to your resume: ${jobAnalysis.required_skills.slice(0, 3).join(', ')}`,
+              selected: false
+            });
+          }
+          
+          if (jobAnalysis.keywords && jobAnalysis.keywords.length > 0) {
+            fallbackImprovements.push({
+              id: 'fallback-2',
+              title: 'Keyword Integration',
+              description: `Incorporate these important keywords: ${jobAnalysis.keywords.slice(0, 5).join(', ')}`,
+              impact: 'medium',
+              category: 'keywords',
+              suggestedText: `Include these keywords throughout your resume: ${jobAnalysis.keywords.slice(0, 5).join(', ')}`,
+              selected: false
+            });
+          }
+          
+          if (jobAnalysis.preferred_skills && jobAnalysis.preferred_skills.length > 0) {
+            fallbackImprovements.push({
+              id: 'fallback-3',
+              title: 'Preferred Skills Enhancement',
+              description: `Consider adding these preferred skills if you have them: ${jobAnalysis.preferred_skills.slice(0, 3).join(', ')}`,
+              impact: 'medium',
+              category: 'content',
+              suggestedText: `Highlight any experience with: ${jobAnalysis.preferred_skills.slice(0, 3).join(', ')}`,
+              selected: false
+            });
+          }
+          
+          if (fallbackImprovements.length > 0) {
+            console.log('✅ Generated fallback improvements:', fallbackImprovements);
+            setImprovements(fallbackImprovements);
+            setIsLoadingImprovements(false);
+            return;
+          }
         }
-      } catch (error) {
-        console.error('❌ Error loading session data:', error);
-        setError('Failed to load improvements. Please try again.');
+        
+        setError('No improvement suggestions available. The job analysis may not have completed successfully. Please try running the analysis again.');
+        return;
+      }
+
+      setIsLoadingImprovements(true);
+      setError('');
+
+      try {
+        console.log('✅ Processing weaknesses:', analysisResults.weaknesses);
+        
+        // Convert analysis weaknesses to improvements - these now come from the comparison API
+        const convertedImprovements: Improvement[] = analysisResults.weaknesses.map((weakness, index) => {
+          console.log(`Processing weakness ${index}:`, weakness);
+          
+          // Ensure we have valid impact level
+          const impactLevel = ['high', 'medium', 'low'].includes(weakness.impact) ? weakness.impact : 'medium';
+          
+          // Use the original ID from backend if available, otherwise create one
+          const improvementId = weakness.id || `improvement-${index + 1}`;
+          
+          const improvement = {
+            id: improvementId,
+            title: weakness.category || 'General Improvement',
+            description: weakness.description || 'Improvement needed',
+            impact: impactLevel as 'high' | 'medium' | 'low',
+            category: getCategoryFromDescription(weakness.description || ''),
+            suggestedText: weakness.suggestion || weakness.description,
+            selected: false
+          };
+          
+          console.log(`Generated improvement ${index} with ID ${improvementId}:`, improvement);
+          return improvement;
+        });
+
+        console.log('✅ All improvements generated:', convertedImprovements);
+        setImprovements(convertedImprovements);
+      } catch (err) {
+        console.error('❌ Error generating improvements:', err);
+        setError('Failed to generate improvements from analysis data. Check console for details.');
       } finally {
         setIsLoadingImprovements(false);
       }
     };
 
-    loadImprovementsFromSession();
-  }, [comparisonSessionId]);
-
+    if (isAuthenticated && !isLoading) {
+      generateImprovements();
+    }
+  }, [isAuthenticated, isLoading, analysisResults]);
 
   // Helper function to categorize improvements based on description
   const getCategoryFromDescription = (description: string): 'content' | 'keywords' | 'formatting' | 'structure' => {
@@ -209,7 +326,7 @@ export default function OptimizePage() {
       );
       
       console.log('✅ Selected improvements applied successfully:', result);
-      console.log('📝 Applied improvements count:', result.applied_count);
+      console.log('📝 Applied improvements count:', result.changes_count);
       console.log('🆔 Applied improvement IDs:', result.applied_improvements);
       
       // Validate the result has the expected data
@@ -217,7 +334,7 @@ export default function OptimizePage() {
         throw new Error('No improved text received from selective application API');
       }
 
-      if (result.applied_count === 0) {
+      if (result.changes_count === 0) {
         console.warn('⚠️ No changes were applied');
         setError('No changes were applied to your resume. Please try different improvements or contact support.');
         setIsApplying(false);

@@ -173,7 +173,7 @@ function OldAnalyzeResumePage() {
                 throw new Error('Job-specific analysis failed on server');
               }
 
-              await new Promise(resolve => setTimeout(resolve, 2000));
+              await new Promise(resolve => setTimeout(resolve, 7000));
               attempts++;
             } catch (pollError) {
               console.error('Error polling job-specific analysis:', pollError);
@@ -266,7 +266,7 @@ function OldAnalyzeResumePage() {
               }
               
               // Wait 2 seconds before next poll
-              await new Promise(resolve => setTimeout(resolve, 2000));
+              await new Promise(resolve => setTimeout(resolve, 7000));
               attempts++;
             } catch (pollError) {
               console.error('Error polling analysis results:', pollError);

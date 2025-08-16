@@ -1,15 +1,13 @@
 'use client';
 
 import { useEffect } from 'react';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
 import { 
   FileText, 
-  Target, 
-  Download,
+  Target,
   Clock,
   CheckCircle,
   ArrowRight,
@@ -46,36 +44,31 @@ export default function DashboardPage() {
 
   const quickActions = [
     {
-      title: 'Analyze Resume',
-      description: 'Upload and analyze your resume for strengths and weaknesses',
-      icon: FileText,
-      href: '/resume-select',
-      color: 'bg-blue-500',
-      completed: false
+      title: 'Punch Up',
+      description: 'Coming Soon - Standalone resume analysis',
+      icon: Sparkles,
+      href: null,
+      color: 'bg-gray-400',
+      completed: false,
+      comingSoon: true
     },
     {
-      title: 'Job Application Flow', 
+      title: 'Apply to Job', 
       description: 'Optimize your resume for a specific job posting',
       icon: Briefcase,
       href: '/resume-select',
       color: 'bg-purple-500',
-      completed: false
+      completed: false,
+      comingSoon: false
     },
     {
-      title: 'Generate PDF',
-      description: 'Create professional LaTeX formatted resume',
-      icon: Download,
-      href: '/generate',
-      color: 'bg-green-500',
-      completed: false
-    },
-    {
-      title: 'Resume Library',
+      title: 'View Library',
       description: 'View and manage all your generated resumes',
       icon: FolderOpen,
       href: '/resume-library',
       color: 'bg-orange-500',
-      completed: false
+      completed: false,
+      comingSoon: false
     }
   ];
 
@@ -190,15 +183,26 @@ export default function DashboardPage() {
                 {quickActions.map((action, index) => (
                   <div
                     key={index}
-                    className="flex items-center p-4 rounded-lg border hover:bg-accent/50 transition-colors cursor-pointer group"
-                    onClick={() => router.push(action.href)}
+                    className={`flex items-center p-4 rounded-lg border transition-colors ${
+                      action.comingSoon 
+                        ? 'cursor-not-allowed opacity-60' 
+                        : 'hover:bg-accent/50 cursor-pointer group'
+                    }`}
+                    onClick={() => action.href && router.push(action.href)}
                   >
                     <div className={`w-10 h-10 ${action.color} rounded-lg flex items-center justify-center mr-4`}>
                       <action.icon className="w-5 h-5 text-white" />
                     </div>
                     <div className="flex-1">
-                      <h3 className="font-medium group-hover:text-primary transition-colors">
+                      <h3 className={`font-medium transition-colors ${
+                        action.comingSoon ? 'text-muted-foreground' : 'group-hover:text-primary'
+                      }`}>
                         {action.title}
+                        {action.comingSoon && (
+                          <span className="ml-2 text-xs bg-muted text-muted-foreground px-2 py-1 rounded">
+                            Coming Soon
+                          </span>
+                        )}
                       </h3>
                       <p className="text-sm text-muted-foreground">
                         {action.description}
@@ -207,7 +211,9 @@ export default function DashboardPage() {
                     {action.completed && (
                       <CheckCircle className="w-5 h-5 text-green-500" />
                     )}
-                    <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:text-primary ml-2 transition-colors" />
+                    {!action.comingSoon && (
+                      <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:text-primary ml-2 transition-colors" />
+                    )}
                   </div>
                 ))}
               </CardContent>
@@ -251,34 +257,6 @@ export default function DashboardPage() {
             </Card>
           </div>
 
-          {/* CTA Section */}
-          <Card className="mt-8 bg-gradient-to-r from-primary/5 to-blue-500/5 border-primary/20">
-            <CardContent className="p-8 text-center">
-              <h3 className="text-2xl font-bold mb-4">Ready for your next optimization?</h3>
-              <p className="text-muted-foreground mb-6 max-w-2xl mx-auto">
-                Upload a new resume and job description to get AI-powered recommendations 
-                that will help you stand out from the competition.
-              </p>
-              <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <Button 
-                  size="lg" 
-                  className="px-8 py-3"
-                  onClick={() => router.push('/resume-select')}
-                >
-                  Start New Optimization
-                  <ArrowRight className="ml-2 h-5 w-5" />
-                </Button>
-                <Button 
-                  variant="outline" 
-                  size="lg"
-                  className="px-8 py-3"
-                  onClick={() => router.push('/demo')}
-                >
-                  View Demo
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
         </div>
       </div>
     </div>

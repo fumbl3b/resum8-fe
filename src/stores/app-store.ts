@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
 import { 
   AppState, 
   JobAnalysisResponse, 
@@ -33,10 +34,12 @@ const initialState: AppState = {
   selectedSuggestions: [],
 };
 
-export const useAppStore = create<AppStore>((set, get) => ({
-  ...initialState,
-  
-  setCurrentStep: (step) => set({ currentStep: step }),
+export const useAppStore = create<AppStore>()(
+  persist(
+    (set, get) => ({
+      ...initialState,
+      
+      setCurrentStep: (step) => set({ currentStep: step }),
   
   setJobDescription: (jobDescription) => set({ jobDescription }),
   
@@ -126,5 +129,23 @@ export const useAppStore = create<AppStore>((set, get) => ({
     };
   },
   
-  reset: () => set(initialState),
-}));
+      reset: () => set(initialState),
+    }),
+    {
+      name: 'resum8-app-store',
+      storage: createJSONStorage(() => localStorage),
+      partialize: (state) => ({
+        // Only persist essential data, not temporary UI states
+        currentStep: state.currentStep,
+        jobDescription: state.jobDescription,
+        resumeText: state.resumeText,
+        optimizedResumeText: state.optimizedResumeText,
+        resumeId: state.resumeId,
+        comparisonSessionId: state.comparisonSessionId,
+        jobAnalysis: state.jobAnalysis,
+        analysisResults: state.analysisResults,
+        selectedSuggestions: state.selectedSuggestions,
+      }),
+    }
+  )
+);

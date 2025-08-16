@@ -18,17 +18,35 @@ import {
   Sparkles
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/hooks/useAuth';
 
 export default function Home() {
   const router = useRouter();
+  const { isAuthenticated, isLoading } = useAuth();
 
-  // Auto-redirect returning users (A-2)
+  // Auto-redirect authenticated users
   useEffect(() => {
-    const hasActiveSession = localStorage.getItem('resum8_user_session');
-    if (hasActiveSession) {
-      router.push('/dashboard'); // Redirect to dashboard/main app
+    if (!isLoading && isAuthenticated) {
+      router.push('/dashboard');
     }
-  }, [router]);
+  }, [isAuthenticated, isLoading, router]);
+
+  // Show loading state while checking authentication
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Don't render the page if user is authenticated (will redirect)
+  if (isAuthenticated) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
@@ -74,7 +92,7 @@ export default function Home() {
             <Button 
               size="lg" 
               className="px-8 py-4 text-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-300"
-              onClick={() => router.push('/signup')}
+              onClick={() => router.push('/auth?mode=signup')}
             >
               Start Free Optimization
               <ArrowRight className="ml-2 h-5 w-5" />
@@ -91,7 +109,7 @@ export default function Home() {
               variant="ghost" 
               size="lg" 
               className="px-8 py-4 text-lg"
-              onClick={() => router.push('/login')}
+              onClick={() => router.push('/auth')}
             >
               Log In
             </Button>
@@ -276,7 +294,7 @@ export default function Home() {
                 size="lg" 
                 variant="secondary"
                 className="px-8 py-3 text-lg font-semibold"
-                onClick={() => router.push('/signup')}
+                onClick={() => router.push('/auth?mode=signup')}
               >
                 Start Your Free Optimization
                 <ArrowRight className="ml-2 h-5 w-5" />

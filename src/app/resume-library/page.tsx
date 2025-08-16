@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
+import { apiClient } from '@/lib/api';
 import { 
   ArrowLeft, 
   FolderOpen,
@@ -18,22 +19,20 @@ import {
   Star,
   Target,
   Filter,
-  Search
+  Search,
+  Loader2,
+  AlertCircle
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 
 interface Resume {
-  id: string;
+  id: number;
   title: string;
   createdAt: Date;
-  updatedAt: Date;
   targetRole?: string;
-  company?: string;
-  status: 'draft' | 'optimized' | 'generated';
-  optimizationScore?: number;
-  tags: string[];
-  previewText: string;
-  fileSize: string;
+  jobDescription?: string;
+  derivedFrom?: string;
+  isDefault: boolean;
 }
 
 export default function ResumeLibraryPage() {
@@ -41,8 +40,9 @@ export default function ResumeLibraryPage() {
   const router = useRouter();
   const [resumes, setResumes] = useState<Resume[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterStatus, setFilterStatus] = useState<'all' | 'draft' | 'optimized' | 'generated'>('all');
-  const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'score'>('newest');
+  const [loadingResumes, setLoadingResumes] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [editingTitles, setEditingTitles] = useState<{[key: number]: string}>({});
 
   useEffect(() => {
     
@@ -51,128 +51,80 @@ export default function ResumeLibraryPage() {
     }
   }, [isAuthenticated, isLoading, router]);
 
-  // Mock data for resumes
+  // Fetch real resumes from API - only when auth is fully loaded and user is authenticated
   useEffect(() => {
-    const mockResumes: Resume[] = [
-      {
-        id: '1',
-        title: 'Senior Software Engineer Resume',
-        createdAt: new Date('2024-01-15'),
-        updatedAt: new Date('2024-01-20'),
-        targetRole: 'Senior Software Engineer',
-        company: 'Google',
-        status: 'generated',
-        optimizationScore: 92,
-        tags: ['React', 'Node.js', 'AWS', 'TypeScript'],
-        previewText: 'Experienced Senior Software Engineer with 8+ years developing scalable web applications using React, Node.js, and AWS...',
-        fileSize: '245 KB'
-      },
-      {
-        id: '2', 
-        title: 'Full Stack Developer Resume',
-        createdAt: new Date('2024-01-10'),
-        updatedAt: new Date('2024-01-18'),
-        targetRole: 'Full Stack Developer',
-        company: 'Meta',
-        status: 'optimized',
-        optimizationScore: 87,
-        tags: ['JavaScript', 'Python', 'PostgreSQL', 'Docker'],
-        previewText: 'Versatile Full Stack Developer specializing in modern web technologies with expertise in JavaScript, Python...',
-        fileSize: '198 KB'
-      },
-      {
-        id: '3',
-        title: 'Frontend Developer Resume',
-        createdAt: new Date('2024-01-08'),
-        updatedAt: new Date('2024-01-15'),
-        targetRole: 'Frontend Developer',
-        company: 'Airbnb',
-        status: 'generated',
-        optimizationScore: 89,
-        tags: ['Vue.js', 'CSS', 'UI/UX', 'Testing'],
-        previewText: 'Creative Frontend Developer with passion for creating intuitive user interfaces using Vue.js, modern CSS...',
-        fileSize: '176 KB'
-      },
-      {
-        id: '4',
-        title: 'DevOps Engineer Resume',
-        createdAt: new Date('2024-01-05'),
-        updatedAt: new Date('2024-01-12'),
-        targetRole: 'DevOps Engineer',
-        company: 'Netflix',
-        status: 'draft',
-        tags: ['Kubernetes', 'CI/CD', 'Terraform', 'Monitoring'],
-        previewText: 'Results-driven DevOps Engineer with expertise in containerization, infrastructure automation, and monitoring...',
-        fileSize: '203 KB'
-      },
-      {
-        id: '5',
-        title: 'Product Manager Resume',
-        createdAt: new Date('2024-01-03'),
-        updatedAt: new Date('2024-01-10'),
-        targetRole: 'Senior Product Manager',
-        company: 'Spotify',
-        status: 'optimized',
-        optimizationScore: 85,
-        tags: ['Strategy', 'Analytics', 'Agile', 'Leadership'],
-        previewText: 'Strategic Product Manager with 6+ years experience driving product development and cross-functional team leadership...',
-        fileSize: '189 KB'
+    const fetchResumes = async () => {
+      // Don't fetch if still loading auth or not authenticated
+      if (isLoading || !isAuthenticated) return;
+      
+      try {
+        setLoadingResumes(true);
+        setError(null);
+        
+        console.log('📚 Fetching resume library...');
+        const response = await apiClient.getResumeLibrary();
+        console.log('📚 Resume library response:', response);
+        
+        // Transform API response to frontend format
+        const transformedResumes: Resume[] = response.resumes.map(apiResume => ({
+          id: apiResume.id,
+          title: apiResume.title,
+          createdAt: new Date(apiResume.created_at),
+          isDefault: apiResume.is_default,
+          targetRole: apiResume.optimizations.length > 0 ? apiResume.optimizations[0].job_title : undefined,
+          jobDescription: apiResume.optimizations.length > 0 ? (apiResume.optimizations[0] as any).job_description : undefined,
+          derivedFrom: (apiResume as any).parent_resume_id ? `Derived from Resume #${(apiResume as any).parent_resume_id}` : undefined,
+        }));
+        
+        setResumes(transformedResumes);
+      } catch (error) {
+        console.error('Failed to fetch resumes:', error);
+        setError('Failed to load resumes. Please try again.');
+      } finally {
+        setLoadingResumes(false);
       }
-    ];
+    };
 
-    setResumes(mockResumes);
-  }, []);
+    fetchResumes();
+  }, [isLoading, isAuthenticated]);
 
   const filteredResumes = resumes.filter(resume => {
     const matchesSearch = resume.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          resume.targetRole?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         resume.company?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         resume.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()));
+                         resume.jobDescription?.toLowerCase().includes(searchTerm.toLowerCase());
     
-    const matchesFilter = filterStatus === 'all' || resume.status === filterStatus;
-    
-    return matchesSearch && matchesFilter;
-  }).sort((a, b) => {
-    switch (sortBy) {
-      case 'newest':
-        return b.updatedAt.getTime() - a.updatedAt.getTime();
-      case 'oldest':
-        return a.updatedAt.getTime() - b.updatedAt.getTime();
-      case 'score':
-        return (b.optimizationScore || 0) - (a.optimizationScore || 0);
-      default:
-        return 0;
-    }
-  });
+    return matchesSearch;
+  }).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
-  const getStatusColor = (status: Resume['status']) => {
-    switch (status) {
-      case 'draft': return 'bg-gray-100 text-gray-700';
-      case 'optimized': return 'bg-blue-100 text-blue-700';
-      case 'generated': return 'bg-green-100 text-green-700';
-    }
+  const handleRenameResume = (resumeId: number, newTitle: string) => {
+    setResumes(prev => prev.map(r => 
+      r.id === resumeId ? { ...r, title: newTitle } : r
+    ));
+    setEditingTitles(prev => {
+      const newState = { ...prev };
+      delete newState[resumeId];
+      return newState;
+    });
   };
 
-  const getStatusIcon = (status: Resume['status']) => {
-    switch (status) {
-      case 'draft': return <FileText className="w-4 h-4" />;
-      case 'optimized': return <Target className="w-4 h-4" />;
-      case 'generated': return <Star className="w-4 h-4" />;
-    }
-  };
-
-  const handleViewResume = (resumeId: string) => {
+  const handleViewResume = (resumeId: number) => {
     // In a real app, this would open the resume in a viewer/editor
     console.log('View resume:', resumeId);
   };
 
-  const handleDownloadResume = (resumeId: string) => {
+  const handleDownloadResume = (resumeId: number) => {
     // In a real app, this would trigger a download
     console.log('Download resume:', resumeId);
   };
 
-  const handleDeleteResume = (resumeId: string) => {
-    setResumes(prev => prev.filter(r => r.id !== resumeId));
+  const handleDeleteResume = async (resumeId: number) => {
+    try {
+      await apiClient.deleteResume(resumeId);
+      setResumes(prev => prev.filter(r => r.id !== resumeId));
+    } catch (error) {
+      console.error('Failed to delete resume:', error);
+      setError('Failed to delete resume. Please try again.');
+    }
   };
 
   if (isLoading) {
@@ -218,95 +170,69 @@ export default function ResumeLibraryPage() {
             </Button>
           </div>
 
-          {/* Stats Overview */}
-          <div className="grid md:grid-cols-4 gap-6 mb-8">
-            <Card>
-              <CardContent className="p-4 text-center">
-                <div className="text-2xl font-bold text-primary mb-1">
-                  {resumes.length}
-                </div>
-                <div className="text-sm text-muted-foreground">Total Resumes</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4 text-center">
-                <div className="text-2xl font-bold text-green-600 mb-1">
-                  {resumes.filter(r => r.status === 'generated').length}
-                </div>
-                <div className="text-sm text-muted-foreground">Generated</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4 text-center">
-                <div className="text-2xl font-bold text-blue-600 mb-1">
-                  {resumes.filter(r => r.status === 'optimized').length}
-                </div>
-                <div className="text-sm text-muted-foreground">Optimized</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4 text-center">
-                <div className="text-2xl font-bold text-orange-600 mb-1">
-                  {resumes.filter(r => r.optimizationScore && r.optimizationScore >= 90).length}
-                </div>
-                <div className="text-sm text-muted-foreground">High Score (90+)</div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Search and Filters */}
+          {/* Search */}
           <Card className="mb-8">
             <CardContent className="p-6">
-              <div className="flex flex-col md:flex-row gap-4">
-                <div className="flex-1">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      placeholder="Search resumes by title, role, company, or skills..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-10"
-                    />
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Filter className="w-4 h-4 text-muted-foreground" />
-                  <span className="text-sm font-medium">Status:</span>
-                  {['all', 'draft', 'optimized', 'generated'].map(status => (
-                    <Button
-                      key={status}
-                      variant={filterStatus === status ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setFilterStatus(status as typeof filterStatus)}
-                    >
-                      {status.charAt(0).toUpperCase() + status.slice(1)}
-                    </Button>
-                  ))}
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium">Sort:</span>
-                  <select
-                    value={sortBy}
-                    onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
-                    className="px-3 py-1 border rounded-md text-sm"
-                  >
-                    <option value="newest">Newest First</option>
-                    <option value="oldest">Oldest First</option>
-                    <option value="score">Highest Score</option>
-                  </select>
-                </div>
+              <div className="relative">
+                <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search resumes by title, role, or job description..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
               </div>
             </CardContent>
           </Card>
 
+          {/* Error Display */}
+          {error && (
+            <Card className="border-red-200 bg-red-50 dark:bg-red-950/20 dark:border-red-800 mb-6">
+              <CardContent className="p-4">
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-red-800 dark:text-red-200">
+                      Error Loading Resumes
+                    </p>
+                    <p className="text-sm text-red-700 dark:text-red-300 mt-1">
+                      {error}
+                    </p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setError(null);
+                        window.location.reload();
+                      }}
+                      className="mt-3 border-red-300 text-red-700 hover:bg-red-100 dark:border-red-700 dark:text-red-300"
+                    >
+                      Try Again
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Resume Grid */}
-          {filteredResumes.length === 0 ? (
+          {loadingResumes ? (
+            <Card>
+              <CardContent className="p-12 text-center">
+                <Loader2 className="w-16 h-16 text-primary mx-auto mb-4 animate-spin" />
+                <h3 className="text-xl font-semibold mb-2">Loading your resumes...</h3>
+                <p className="text-muted-foreground">
+                  Please wait while we fetch your resume library
+                </p>
+              </CardContent>
+            </Card>
+          ) : filteredResumes.length === 0 ? (
             <Card>
               <CardContent className="p-12 text-center">
                 <FolderOpen className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
                 <h3 className="text-xl font-semibold mb-2">No resumes found</h3>
                 <p className="text-muted-foreground mb-4">
-                  {searchTerm || filterStatus !== 'all' 
+                  {searchTerm 
                     ? 'Try adjusting your search or filters'
                     : 'Get started by creating your first resume'}
                 </p>
@@ -323,72 +249,72 @@ export default function ResumeLibraryPage() {
                   <CardHeader>
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
-                        <CardTitle className="text-lg line-clamp-2">
-                          {resume.title}
-                        </CardTitle>
+                        {editingTitles[resume.id] !== undefined ? (
+                          <Input
+                            value={editingTitles[resume.id]}
+                            onChange={(e) => setEditingTitles(prev => ({ ...prev, [resume.id]: e.target.value }))}
+                            onBlur={() => handleRenameResume(resume.id, editingTitles[resume.id])}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                handleRenameResume(resume.id, editingTitles[resume.id]);
+                              }
+                            }}
+                            className="text-lg font-semibold"
+                            autoFocus
+                          />
+                        ) : (
+                          <CardTitle 
+                            className="text-lg line-clamp-2 cursor-pointer hover:text-primary"
+                            onClick={() => setEditingTitles(prev => ({ ...prev, [resume.id]: resume.title }))}
+                          >
+                            {resume.title}
+                          </CardTitle>
+                        )}
                         <CardDescription className="mt-1">
                           {resume.targetRole && (
                             <span className="font-medium">{resume.targetRole}</span>
                           )}
-                          {resume.company && (
-                            <span className="text-muted-foreground"> at {resume.company}</span>
-                          )}
                         </CardDescription>
                       </div>
-                      <Badge className={`${getStatusColor(resume.status)} flex items-center gap-1`}>
-                        {getStatusIcon(resume.status)}
-                        {resume.status}
-                      </Badge>
                     </div>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-4">
-                      {/* Score */}
-                      {resume.optimizationScore && (
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm font-medium">Optimization Score</span>
-                          <div className="flex items-center gap-2">
-                            <div className="w-16 bg-muted rounded-full h-2">
-                              <div 
-                                className="bg-primary h-2 rounded-full transition-all"
-                                style={{ width: `${resume.optimizationScore}%` }}
-                              ></div>
-                            </div>
-                            <span className="text-sm font-bold text-primary">
-                              {resume.optimizationScore}%
-                            </span>
-                          </div>
+                      {/* History */}
+                      {resume.derivedFrom && (
+                        <div className="bg-blue-50 dark:bg-blue-950/20 p-3 rounded-lg">
+                          <p className="text-sm font-medium text-blue-800 dark:text-blue-200">
+                            History
+                          </p>
+                          <p className="text-xs text-blue-600 dark:text-blue-300">
+                            {resume.derivedFrom}
+                          </p>
                         </div>
                       )}
 
-                      {/* Preview */}
-                      <div className="bg-muted/50 p-3 rounded-lg">
-                        <p className="text-xs text-muted-foreground line-clamp-3">
-                          {resume.previewText}
-                        </p>
-                      </div>
-
-                      {/* Tags */}
-                      <div className="flex flex-wrap gap-1">
-                        {resume.tags.slice(0, 3).map((tag, index) => (
-                          <Badge key={index} variant="secondary" className="text-xs">
-                            {tag}
-                          </Badge>
-                        ))}
-                        {resume.tags.length > 3 && (
-                          <Badge variant="secondary" className="text-xs">
-                            +{resume.tags.length - 3}
-                          </Badge>
-                        )}
-                      </div>
+                      {/* Job Description */}
+                      {resume.jobDescription && (
+                        <div className="bg-green-50 dark:bg-green-950/20 p-3 rounded-lg">
+                          <p className="text-sm font-medium text-green-800 dark:text-green-200 mb-2">
+                            Job Description
+                          </p>
+                          <p className="text-xs text-green-600 dark:text-green-300 line-clamp-3">
+                            {resume.jobDescription}
+                          </p>
+                        </div>
+                      )}
 
                       {/* Metadata */}
                       <div className="flex items-center justify-between text-xs text-muted-foreground">
                         <div className="flex items-center gap-1">
                           <Calendar className="w-3 h-3" />
-                          {resume.updatedAt.toLocaleDateString()}
+                          {resume.createdAt.toLocaleDateString()}
                         </div>
-                        <span>{resume.fileSize}</span>
+                        {resume.isDefault && (
+                          <Badge variant="secondary" className="text-xs">
+                            Default
+                          </Badge>
+                        )}
                       </div>
 
                       {/* Actions */}

@@ -100,8 +100,8 @@ function OldAnalyzePage() {
           throw new Error('Comparison failed on server');
         }
 
-        // Wait 2 seconds before next poll
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        // Wait 5 seconds before next poll
+        await new Promise(resolve => setTimeout(resolve, 7000));
         attempts++;
       } catch (pollError) {
         console.error('Error polling comparison results:', pollError);

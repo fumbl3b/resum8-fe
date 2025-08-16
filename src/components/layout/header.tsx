@@ -47,13 +47,13 @@ export function Header() {
 
           {/* Navigation */}
           <div className="flex items-center gap-4">
-            {isAuthenticated && user ? (
+            {isAuthenticated ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="flex items-center gap-2 h-auto p-2">
                     <div className="flex items-center gap-2">
                       <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
-                        {user.firstName && user.lastName ? (
+                        {user?.firstName && user?.lastName ? (
                           <span className="text-white text-sm font-semibold">
                             {user.firstName.charAt(0)}{user.lastName.charAt(0)}
                           </span>
@@ -63,9 +63,9 @@ export function Header() {
                       </div>
                       <div className="hidden sm:block text-left">
                         <p className="text-sm font-medium">
-                          {user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : user.email.split('@')[0]}
+                          {user?.firstName && user?.lastName ? `${user.firstName} ${user.lastName}` : user?.email?.split('@')[0] || 'User'}
                         </p>
-                        <p className="text-xs text-muted-foreground">{user.email}</p>
+                        <p className="text-xs text-muted-foreground">{user?.email || ''}</p>
                       </div>
                       <ChevronDown className="w-4 h-4 text-muted-foreground" />
                     </div>

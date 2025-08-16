@@ -107,21 +107,24 @@ interface ResumeAnalysisResponse {
 // Comparison interfaces
 interface ComparisonStartRequest {
   base_resume_id: number;
-  alt_resume_id?: number;
   job_description: string;
-  job_title: string;
+  job_title?: string; // Now optional - will be auto-extracted if not provided
 }
 
 interface ComparisonStartResponse {
   session_id: number;
-  status: 'DONE';
+  job_title: string; // Extracted or provided job title
+  status: 'PENDING' | 'RUNNING' | 'DONE' | 'ERROR';
   steps: {
-    parse_base: { state: 'DONE' };
-    analyze: { state: 'DONE' };
-    suggest: { state: 'DONE' };
-    rewrite: { state: 'PENDING' | 'DONE' };
+    parse_base: { state: 'PENDING' | 'RUNNING' | 'DONE' | 'ERROR' | 'SKIPPED'; started_at?: string; completed_at?: string };
+    analyze: { state: 'PENDING' | 'RUNNING' | 'DONE' | 'ERROR' | 'SKIPPED'; started_at?: string; completed_at?: string };
+    suggest: { state: 'PENDING' | 'RUNNING' | 'DONE' | 'ERROR' | 'SKIPPED'; started_at?: string; completed_at?: string };
+    rewrite: { state: 'PENDING' | 'RUNNING' | 'DONE' | 'ERROR' | 'SKIPPED'; started_at?: string; completed_at?: string };
+    diff?: { state: 'PENDING' | 'RUNNING' | 'DONE' | 'ERROR' | 'SKIPPED'; started_at?: string; completed_at?: string };
+    latex?: { state: 'PENDING' | 'RUNNING' | 'DONE' | 'ERROR' | 'SKIPPED'; started_at?: string; completed_at?: string };
+    pdf?: { state: 'PENDING' | 'RUNNING' | 'DONE' | 'ERROR' | 'SKIPPED'; started_at?: string; completed_at?: string };
   };
-  message: string;
+  message?: string;
   
   // Include the actual response data as well for backward compatibility
   id?: number; // Fallback field name
@@ -129,18 +132,27 @@ interface ComparisonStartResponse {
 
 interface ComparisonSessionResponse {
   id: number;
-  status: 'RUNNING' | 'DONE' | 'ERROR';
+  status: 'PENDING' | 'RUNNING' | 'DONE' | 'ERROR';
   base_resume_id: number;
   job_description: string;
   job_title: string;
   steps: {
-    parse_base: { state: string; completed_at?: string };
-    analyze: { state: string; completed_at?: string };
-    suggest: { state: string; completed_at?: string };
-    rewrite: { state: string; completed_at?: string };
+    parse_base: { state: 'PENDING' | 'RUNNING' | 'DONE' | 'ERROR' | 'SKIPPED'; started_at?: string; completed_at?: string };
+    analyze: { state: 'PENDING' | 'RUNNING' | 'DONE' | 'ERROR' | 'SKIPPED'; started_at?: string; completed_at?: string };
+    suggest: { state: 'PENDING' | 'RUNNING' | 'DONE' | 'ERROR' | 'SKIPPED'; started_at?: string; completed_at?: string };
+    rewrite?: { state: 'PENDING' | 'RUNNING' | 'DONE' | 'ERROR' | 'SKIPPED'; started_at?: string; completed_at?: string }; // Only runs after user selection
+    diff?: { state: 'PENDING' | 'RUNNING' | 'DONE' | 'ERROR' | 'SKIPPED'; started_at?: string; completed_at?: string };
+    latex?: { state: 'PENDING' | 'RUNNING' | 'DONE' | 'ERROR' | 'SKIPPED'; started_at?: string; completed_at?: string };
+    pdf?: { state: 'PENDING' | 'RUNNING' | 'DONE' | 'ERROR' | 'SKIPPED'; started_at?: string; completed_at?: string };
   };
-  suggestions?: string; // Raw suggestions from OpenAI
+  pdf_ready?: boolean;
+  has_improved_text?: boolean;
+  improved_text?: string; // Only populated after user selects improvements and calls apply-selected
+  diff_json?: any; // Diff data between original and improved text
+  tex_content?: string; // LaTeX content (generated after apply-selected)
+  suggestions?: string; // Raw suggestions from OpenAI (legacy)
   analysis_results?: string; // Analysis of job description (keywords, benefits)
+  original_resume_text?: string; // Original resume text for diff comparison
   improvements?: {
     high_impact: Array<{
       id: string;
@@ -190,6 +202,47 @@ interface ComparisonDiffResponse {
     };
   };
   editable_text: string;
+}
+
+// Artifact interfaces
+interface SaveArtifactRequest {
+  title?: string; // Optional custom title
+}
+
+interface SaveArtifactResponse {
+  message: string;
+  artifact_id: number;
+  artifact: {
+    id: number;
+    title: string;
+    job_title: string;
+    has_pdf: boolean;
+    has_latex: boolean;
+    created_at: string;
+    updated_at: string;
+  };
+}
+
+interface Artifact {
+  id: number;
+  title: string;
+  job_title: string;
+  parent_resume_id: number;
+  has_pdf: boolean;
+  has_latex: boolean;
+  created_at: string;
+  updated_at: string;
+  session_id: number;
+  source_text?: string;
+  improved_text?: string;
+  tex_content?: string;
+  job_description?: string;
+  suggestions?: any;
+}
+
+interface ArtifactsListResponse {
+  artifacts: Artifact[];
+  total: number;
 }
 
 // Dashboard interface
@@ -248,6 +301,7 @@ class APIClient {
     options: RequestInit = {}
   ): Promise<T> {
     const url = `${API_BASE_URL}${endpoint}`;
+    console.log(`🌐 Making ${options.method || 'GET'} request to:`, url);
 
     // Normalize headers to a plain record for safe mutation
     const normalizedHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -473,11 +527,14 @@ class APIClient {
 
   // Comparison endpoints
   async startComparison(data: ComparisonStartRequest): Promise<ComparisonStartResponse> {
+    console.log('🚀 startComparison called with data:', data);
+    console.log('🌐 Making request to /compare/start');
+    
     const response = await this.request<ComparisonStartResponse>('/compare/start', {
       method: 'POST',
       body: JSON.stringify(data),
     });
-    console.log('🔄 Comparison API response:', response);
+    console.log('✅ Comparison API response received:', response);
     return response;
   }
 
@@ -533,11 +590,91 @@ class APIClient {
     return this.request<ComparisonDiffResponse>(`/compare/${sessionId}/diff`);
   }
 
-  async editComparisonText(sessionId: number, editedText: string): Promise<{ message: string; updated_at: string }> {
-    return this.request<{ message: string; updated_at: string }>(`/compare/${sessionId}/edit`, {
-      method: 'POST',
-      body: JSON.stringify({ edited_text: editedText }),
+  async getImprovedText(sessionId: number): Promise<{ improved_text: string }> {
+    return this.request<{ improved_text: string }>(`/compare/${sessionId}/improved-text`);
+  }
+
+  async editComparisonText(sessionId: number, editedText: string): Promise<{ message: string; updated_at: string; pdf_ready: boolean }> {
+    return this.request<{ message: string; updated_at: string; pdf_ready: boolean }>(`/compare/${sessionId}/improved-text`, {
+      method: 'PUT',
+      body: JSON.stringify({ improved_text: editedText }),
     });
+  }
+
+  async applySelectedImprovements(sessionId: number, selectedImprovementIds: string[], customInstructions?: string): Promise<{
+    message: string;
+    improved_text: string;
+    applied_improvements: string[];
+    applied_count: number;
+    updated_at: string;
+    pdf_ready: boolean;
+    latex_ready: boolean;
+    steps: {
+      rewrite: string;
+      diff: string;
+      latex: string;
+      pdf: string;
+    };
+  }> {
+    console.log('🔗 Making request to /compare/{id}/apply-selected with:', {
+      endpoint: `/compare/${sessionId}/apply-selected`,
+      method: 'PUT',
+      url: `${API_BASE_URL}/compare/${sessionId}/apply-selected`,
+      payload: {
+        selected_improvement_ids: selectedImprovementIds,
+        custom_instructions: customInstructions
+      }
+    });
+
+    // First, let's test if the endpoint exists by checking the session
+    try {
+      const session = await this.getComparisonSession(sessionId);
+      console.log('📊 Session exists and is accessible:', {
+        sessionId: session.id,
+        status: session.status,
+        hasImprovements: !!session.improvements
+      });
+    } catch (sessionError) {
+      console.error('❌ Cannot access session before applying improvements:', sessionError);
+      throw new Error('Session not accessible - cannot apply improvements');
+    }
+
+    try {
+      const result = await this.request<{
+        message: string;
+        improved_text: string;
+        applied_improvements: string[];
+        applied_count: number;
+        updated_at: string;
+        pdf_ready: boolean;
+        latex_ready: boolean;
+        steps: {
+          rewrite: string;
+          diff: string;
+          latex: string;
+          pdf: string;
+        };
+      }>(`/compare/${sessionId}/apply-selected`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          selected_improvement_ids: selectedImprovementIds,
+          custom_instructions: customInstructions
+        }),
+      });
+
+      console.log('✅ /compare/{id}/apply-selected successful, received:', result);
+      return result;
+    } catch (error) {
+      console.error('🚨 Detailed error for apply-selected endpoint:', {
+        error,
+        endpoint: `/compare/${sessionId}/apply-selected`,
+        fullUrl: `${API_BASE_URL}/compare/${sessionId}/apply-selected`,
+        method: 'PUT',
+        sessionId,
+        selectedImprovementIds
+      });
+      throw error;
+    }
   }
 
   async exportComparison(sessionId: number, options: { include_diff: boolean; latex_style: string }): Promise<{ message: string; export_id: string; estimated_time: string }> {
@@ -561,6 +698,8 @@ class APIClient {
     return response.blob();
   }
 
+  // DEPRECATED: LaTeX is generated automatically during session creation
+  // Use the session data directly or trigger regeneration via PUT /improved-text
   async generateLatex(sessionId: number, options: {
     latex_style?: 'modern' | 'classic' | 'minimal';
     custom_text?: string;
@@ -568,77 +707,45 @@ class APIClient {
     latex_content: string;
     text_source: 'custom' | 'session';
   }> {
-    console.log('🔗 Making request to /improvements/generate-latex with:', {
-      endpoint: '/improvements/generate-latex',
-      method: 'POST',
-      payload: {
-        session_id: sessionId,
-        latex_style: options.latex_style || 'modern',
-        custom_text: options.custom_text
-      }
-    });
-
-    const result = await this.request<{
-      latex_content: string;
-      text_source: 'custom' | 'session';
-    }>('/improvements/generate-latex', {
-      method: 'POST',
-      body: JSON.stringify({
-        session_id: sessionId,
-        latex_style: options.latex_style || 'modern',
-        custom_text: options.custom_text
-      }),
-    });
-
-    console.log('✅ LaTeX generation successful, text source:', result.text_source);
-    return result;
+    console.log('⚠️ generateLatex is deprecated - LaTeX is auto-generated in session');
+    
+    // If custom text is provided, update the session improved text first
+    if (options.custom_text) {
+      await this.editComparisonText(sessionId, options.custom_text);
+    }
+    
+    // Get the session data which should include the LaTeX content
+    const session = await this.getComparisonSession(sessionId);
+    
+    if (!session.tex_content) {
+      throw new Error('No LaTeX content found in session. Session may not be complete.');
+    }
+    
+    return {
+      latex_content: session.tex_content,
+      text_source: options.custom_text ? 'custom' : 'session'
+    };
   }
 
+  // DEPRECATED: Use getComparisonSession() and getImprovedText() instead
   async getComparisonResumeText(sessionId: number): Promise<{
     session_id: number;
     original_text: string;
     improved_text: string;
     resume_title: string;
   }> {
-    return this.request<{
-      session_id: number;
-      original_text: string;
-      improved_text: string;
-      resume_title: string;
-    }>(`/compare/${sessionId}/resume-text`);
+    // Fallback for backward compatibility - use session endpoint instead
+    const session = await this.getComparisonSession(sessionId);
+    const improved = await this.getImprovedText(sessionId);
+    
+    return {
+      session_id: sessionId,
+      original_text: session.improved_text || '', // We'll get this from session
+      improved_text: improved.improved_text,
+      resume_title: session.job_title || 'Resume'
+    };
   }
 
-  async applySelectedImprovements(sessionId: number, selectedImprovements: string[], customInstructions?: string): Promise<{
-    improved_text: string;
-    applied_improvements: string[];
-    changes_count: number;
-  }> {
-    console.log('🔗 Making request to /improvements/apply with:', {
-      endpoint: '/improvements/apply',
-      method: 'POST',
-      payload: {
-        session_id: sessionId,
-        selected_improvements: selectedImprovements,
-        custom_instructions: customInstructions
-      }
-    });
-
-    const result = await this.request<{
-      improved_text: string;
-      applied_improvements: string[];
-      changes_count: number;
-    }>('/improvements/apply', {
-      method: 'POST',
-      body: JSON.stringify({
-        session_id: sessionId,
-        selected_improvements: selectedImprovements,
-        custom_instructions: customInstructions
-      }),
-    });
-
-    console.log('✅ /improvements/apply successful, received:', result);
-    return result;
-  }
 
   // Document processing endpoints
   async applyImprovements(data: ApplyImprovementsRequest): Promise<ApplyImprovementsResponse> {
@@ -661,6 +768,37 @@ class APIClient {
   // Dashboard endpoint
   async getDashboardSummary(): Promise<DashboardSummaryResponse> {
     return this.request<DashboardSummaryResponse>('/me/summary');
+  }
+
+  // Artifact endpoints
+  async saveArtifact(sessionId: number, data: SaveArtifactRequest = {}): Promise<SaveArtifactResponse> {
+    return this.request<SaveArtifactResponse>(`/compare/${sessionId}/save`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getArtifacts(): Promise<ArtifactsListResponse> {
+    return this.request<ArtifactsListResponse>('/compare/artifacts');
+  }
+
+  async getArtifact(artifactId: number, includeContent: boolean = false): Promise<Artifact> {
+    const queryParam = includeContent ? '?include_content=true' : '';
+    return this.request<Artifact>(`/compare/artifacts/${artifactId}${queryParam}`);
+  }
+
+  async downloadArtifact(artifactId: number): Promise<Blob> {
+    const response = await fetch(`${API_BASE_URL}/compare/artifacts/${artifactId}/download`, {
+      headers: {
+        'Authorization': `Bearer ${this.accessToken}`,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error('Artifact download failed');
+    }
+
+    return response.blob();
   }
 
   // System endpoints
